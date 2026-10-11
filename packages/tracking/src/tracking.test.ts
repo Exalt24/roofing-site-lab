@@ -130,6 +130,44 @@ test("MUTANT: withdrawing the advertising box deletes the click details, visitor
   await t.close();
 });
 
+test("MUTANT: a purge whose scrub was blocked by a reader retries the scrub on the next purge, even when there is nothing new to delete", async () => {
+  const { mkdtempSync, rmSync, readFileSync, existsSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { DatabaseSync } = await import("node:sqlite");
+  const dir = mkdtempSync(join(tmpdir(), "sc-"));
+  const file = join(dir, "l.sqlite");
+  let reader: InstanceType<typeof DatabaseSync> | undefined;
+  let l: Ledger | undefined;
+  try {
+    l = new Ledger(file);
+    const old = new Date("2020-01-01T00:00:00Z");
+    const { id } = l.insert(parseForm({ id: 41, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/", submitted_at: "2020-01-01T00:00:00Z" }), old);
+    l.enqueue(id, "email", { to: "o@x.example", subject: "s", text: "NEEDLE-SCRUB-RETRY" }, old);
+    reader = new DatabaseSync(file);
+    reader.exec("BEGIN");
+    reader.prepare("SELECT COUNT(*) FROM leads").all();
+    const now = new Date("2026-10-12T00:00:00Z");
+    assert.equal(l.purgeOlderThan(24, now).scrubbed, false, "a reader blocks the checkpoint");
+    reader.exec("COMMIT"); reader.close(); reader = undefined;
+    assert.equal(l.purgeOlderThan(24, now).scrubbed, true, "the next purge retries the scrub although it deletes nothing");
+    assert.equal(existsSync(file + "-wal") && readFileSync(file + "-wal").includes("NEEDLE-SCRUB-RETRY"), false);
+  } finally { reader?.close(); l?.db.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("MUTANT: the owner notification names the page without its query string, so no ad click id waits in the outbox; a click time that is not believable drops the click ids", async () => {
+  const t = await boot();
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "a1" }) });
+  const out = JSON.parse((t.ledger.db.prepare("SELECT payload FROM outbox ORDER BY id LIMIT 1").get() as { payload: string }).payload);
+  assert.equal(/GG1|gclid/.test(out.text), false);
+  assert.match(out.text, /Page: https:\/\/seabreeze-roofing\.example\/contact\/$/);
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "b2", phone: "604-555-0199", click_time: new Date(Date.now() + 5 * 86400000).toISOString() }) });
+  const row = t.ledger.all().find((r) => r.phone_e164 === "+16045550199")!;
+  assert.equal(row.gclid, null, "a click id with a future click time is dropped");
+  assert.equal(row.measurement_opt_in, 1);
+  await t.close();
+});
+
 test("the withdraw command deletes one lead's advertising details in a real ledger file and refuses an unknown id", async () => {
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, rmSync } = await import("node:fs");

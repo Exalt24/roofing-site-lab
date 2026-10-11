@@ -34,6 +34,8 @@ async function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
 
 /** One line, no control characters, capped: a name or address ends up in an email subject and a ledger row, so a pasted line break must not become a second header. */
 export const cleanLine = (v: string, max: number) => v.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ").trim().slice(0, max);
+/** The notification names the page without its query string: the query carries the ad click id, which must not sit in an unsent outbox row (or in an email) after the person withdraws. */
+const pageWithoutQuery = (u: string) => { try { const x = new URL(u); return x.origin + x.pathname; } catch { return u.split(/[?#]/)[0]; } };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createReceiver(o: ReceiverOptions): Server {
@@ -106,18 +108,20 @@ export function createReceiver(o: ReceiverOptions): Server {
         const clickMs = measure ? Date.parse(line("click_time", 40)) : NaN;
         const nowMs = now().getTime();
         const clickAt = Number.isFinite(clickMs) && clickMs <= nowMs + 60_000 && nowMs - clickMs <= 90 * 86_400_000 ? new Date(clickMs).toISOString() : undefined;
-        const ids = clickIds(landing);
+        // a click time that was sent but is not believable (in the future, older than a click id lives, unparseable) means the click id cannot be trusted either: drop it rather than upload it as fresh
+        const badClick = measure && line("click_time", 40) !== "" && clickAt === undefined;
+        const ids = badClick ? ({} as ReturnType<typeof clickIds>) : clickIds(landing);
         const m = (k: string, n: number) => (measure ? line(k, n) : "");
         const ev: LeadEvent = {
           kind: "form", sourceEventId: `site-${UUID.test(f("submission_id")) ? f("submission_id").toLowerCase() : o.ledger.newSubmissionId()}`, occurredAt: now().toISOString(), phoneE164: phone, email: email || null, name,
           landingPageUrl: landing || null, source: ids.utm_source ?? null, medium: ids.utm_medium ?? null, campaign: ids.utm_campaign ?? null,
           utm: { source: m("utm_source", 100) || ids.utm_source, medium: m("utm_medium", 100) || ids.utm_medium, campaign: m("utm_campaign", 200) || ids.utm_campaign },
-          gclid: m("gclid", 200) || ids.gclid, wbraid: m("wbraid", 200) || ids.wbraid, gbraid: m("gbraid", 200) || ids.gbraid, gaClientId: m("ga_client_id", 60) || undefined,
+          gclid: badClick ? undefined : m("gclid", 200) || ids.gclid, wbraid: badClick ? undefined : m("wbraid", 200) || ids.wbraid, gbraid: badClick ? undefined : m("gbraid", 200) || ids.gbraid, gaClientId: m("ga_client_id", 60) || undefined,
           firstTime: null, trackingNumber: null, raw: { form: "quote", landing_page: landing, service: line("service", 80) || null, area: line("area", 80) || null },
           consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", measurementOptIn: measure, clickAt,
         };
         const r = o.ledger.insert(ev, now());
-        if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${landing}` : ""}` }, now());
+        if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${pageWithoutQuery(landing)}` : ""}` }, now());
         return json(res, 200, { ok: true }, origin);
       }
       return json(res, 404, { error: "not found" });

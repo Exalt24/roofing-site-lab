@@ -96,7 +96,7 @@ export class Ledger {
     if (!row) return false;
     let raw: Record<string, unknown> = {};
     try { raw = JSON.parse(row.raw_json) as Record<string, unknown>; } catch { raw = {}; }
-    delete raw.landing_page;
+    for (const k of ["landing_page", "landing_page_url", "referrer", "referring_url", "utm_source", "utm_medium", "utm_campaign"]) delete raw[k];
     this.db.prepare(`UPDATE leads SET measurement_opt_in = 0, gclid = NULL, wbraid = NULL, gbraid = NULL, msclkid = NULL, ga_client_id = NULL, landing_page_url = NULL,
       source = NULL, medium = NULL, campaign = NULL, utm_source = NULL, utm_medium = NULL, utm_campaign = NULL, click_at = NULL, raw_json = ? WHERE id = ?`).run(JSON.stringify(raw), id);
     this.scrub();
@@ -134,10 +134,12 @@ export class Ledger {
   /** Once sent, the message body (a name, a phone number, what the person wrote) is blanked: the ledger keeps the lead, the outbox does not keep a second copy. */
   markSent(id: number, now = new Date()) {
     this.db.prepare("UPDATE outbox SET sent_at=?, last_error=NULL, payload='{}', claimed_at=NULL WHERE id=?").run(now.toISOString(), id);
-    this.scrub(); // the blanked message text must not linger in the write-ahead log either
+    this.needsScrub = !this.scrub(); // the blanked message text must not linger in the write-ahead log either
   }
 
   /** Empties the write-ahead log and the free list so deleted or blanked text is not left in the file. Returns false when another connection is reading and the log could not be emptied yet. */
+  /** Set when a scrub could not finish (another connection was reading), so the next purge retries it even if it has nothing new to delete. */
+  private needsScrub = false;
   scrub(): boolean {
     const r = this.db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy?: number } | undefined;
     return !r || r.busy === 0;
@@ -160,7 +162,8 @@ export class Ledger {
     const leads = Number(this.db.prepare("DELETE FROM leads WHERE received_at < ?").run(iso).changes);
     // "deleted" has to mean gone from the file: secure_delete zeroes freed pages and the checkpoint plus VACUUM drops them from the write-ahead log and the free list
     let scrubbed = true;
-    if (leads || outbox) { this.db.exec("VACUUM"); scrubbed = this.scrub(); }
+    if (leads || outbox) this.db.exec("VACUUM");
+    if (leads || outbox || this.needsScrub) { scrubbed = this.scrub(); this.needsScrub = !scrubbed; }
     return { leads, outbox, scrubbed };
   }
 }
