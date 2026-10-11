@@ -112,6 +112,15 @@ test("MUTANT: without the separate measurement box a form is stored with what th
   await t.close();
 });
 
+test("MUTANT: a form lead that arrives through CallRail's form webhook has no measurement box behind it, so neither Google builder will use it", () => {
+  const l = new Ledger();
+  const { id } = l.insert({ ...parseForm({ id: 21, form_data: { name: "Ana", phone: "604-555-0188", email: "ana@example.com" }, landing_page_url: "https://x.example/?gclid=G21", submitted_at: "2026-10-05T10:00:00Z" }), gaClientId: "111.222" });
+  const row = l.get(id)!;
+  assert.equal(row.measurement_opt_in, null);
+  assert.equal(adsIngestEvent(row, { stage: "sold", value: 100, at: new Date("2026-10-06T10:00:00Z"), uploadAt: new Date("2026-10-06T10:00:00Z") }).event, null);
+  assert.equal(ga4Payload(row, "generate_lead", { now: new Date("2026-10-06T10:00:00Z") }).payload, null);
+});
+
 test("the notice wording a person saw is stored with the lead, and the marketing box is off unless it was ticked", async () => {
   const t = await boot();
   await fetch(t.base + "/api/lead", { method: "POST", body: formData({ consent_text_version: "privacy-2026-10-2", submission_id: "a" }) });
