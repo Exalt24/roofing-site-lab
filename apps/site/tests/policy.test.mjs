@@ -56,6 +56,19 @@ test("the marketing consent box names the sender, gives a mailing address and sa
   assert.equal(/checked/.test(label[1]), false);
 });
 
+test("MUTANT: ad measurement has its own unticked box that says it is optional and does not affect the quote, and the privacy page says nothing but the quote is a condition of the quote", () => {
+  const m = /<label class="check"><input type="checkbox" name="measurement_opt_in"[^>]*>([\s\S]*?)<\/label>/.exec(contact);
+  assert.ok(m, "a measurement box exists");
+  assert.equal(/checked/.test(m[0]), false, "never pre-ticked");
+  const text = m[1].replace(/<[^>]+>/g, "");
+  assert.match(text, /optional/i);
+  assert.match(text, /does not affect my quote/i);
+  assert.match(text, /hashed/);
+  assert.match(privacy, /Nothing else is a condition of getting a quote/);
+  assert.match(privacy, /only if you tick the separate advertising box/i);
+  assert.equal(/By sending the quote form you agree to us using what you typed for the purposes above/.test(privacy), false, "the old bundled sentence is gone");
+});
+
 test("required fields are marked", () => {
   assert.match(contact, /Fields marked \* are required/);
   assert.match(contact, /Your name \*/);

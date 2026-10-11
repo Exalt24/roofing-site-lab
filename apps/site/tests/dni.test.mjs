@@ -138,10 +138,14 @@ test("the marketing opt-in checkbox sits on the same row as its label text, at i
   for (const [w, h] of [[390, 844], [1280, 800]]) {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
     await page.goto(BASE + "/contact/", { waitUntil: "load" });
-    const box = await page.locator("label.check input").boundingBox();
-    const text = await page.locator("label.check").boundingBox();
-    assert.ok(box.width < 30, `checkbox is ${box.width}px wide at ${w}px (a full-width box means the grid rule won)`);
-    assert.ok(Math.abs(box.y - text.y) < 20 && box.x < text.x + 40, `checkbox is detached from its label at ${w}px`);
+    const labels = page.locator("label.check");
+    assert.equal(await labels.count(), 2, "the marketing box and the advertising box");
+    for (let i = 0; i < 2; i++) {
+      const box = await labels.nth(i).locator("input").boundingBox();
+      const text = await labels.nth(i).boundingBox();
+      assert.ok(box.width < 30, `checkbox ${i} is ${box.width}px wide at ${w}px (a full-width box means the grid rule won)`);
+      assert.ok(Math.abs(box.y - text.y) < 20 && box.x < text.x + 40, `checkbox ${i} is detached from its label at ${w}px`);
+    }
     await page.close();
   }
 });

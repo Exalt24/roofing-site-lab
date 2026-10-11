@@ -16,9 +16,9 @@ const P = {
   skylight: ph("skylight-flashing", "Small roof window set into a grey shingle roof under a blue sky with a few clouds", "New skylight flashing"),
   solar: ph("solar-array-gable", "Black solar panels with aluminium frames mounted on a south facing gable roof with distant mountains", "Array on the south slope"),
   complex: ph("complex-roof-valleys", "Aerial view of a residential roof with several valleys, dormers and chimneys covered in grey shingles", "Three quarter view of the finished roof"),
-  valley: ph("valley-flashing-detail", "Close view of overlapping grey shingles with a seam running diagonally across the roof slope", "Valley flashing before the shingles went over it", "during"),
+  valley: ph("valley-flashing-detail", "Close view of overlapping grey shingles with a seam running diagonally across the roof slope", "The valley line running across the finished slope"),
   slate: ph("composite-slate-detail", "Close view of dark grey composite slate tiles laid in even courses", "Composite slate edge detail"),
-  chimney: ph("chimney-step-flashing", "Two brick chimneys on a grey shingle roof among evergreen trees, the larger one with metal flashing at its base", "Chimney step flashing as it went in", "during"),
+  chimney: ph("chimney-step-flashing", "Two brick chimneys on a grey shingle roof among evergreen trees, the larger one with metal flashing at its base", "The larger chimney with its new flashing at the base"),
 };
 
 const base = { status: "published" as const, photoRelease: true, videos: [] as Project["videos"] };

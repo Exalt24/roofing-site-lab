@@ -10,7 +10,7 @@ export interface LeadRow {
   landing_page_url: string | null; source: string | null; medium: string | null; campaign: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null;
   gclid: string | null; wbraid: string | null; gbraid: string | null; msclkid: string | null; ga_client_id: string | null; first_time: number | null;
   stage: Stage; estimate_value: number | null; sold_value: number | null; sold_at: string | null;
-  click_at: string | null; tracking_number: string | null; consent_version: string | null; marketing_opt_in: number; // the wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
+  click_at: string | null; tracking_number: string | null; consent_version: string | null; marketing_opt_in: number; measurement_opt_in: number | null; // measurement_opt_in is the form's separate unticked ad-measurement box (null for a call, which the caller greeting covers). The wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
 }
 
 export const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
@@ -41,7 +41,7 @@ export class Ledger {
         source TEXT, medium TEXT, campaign TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT,
         gclid TEXT, wbraid TEXT, gbraid TEXT, msclkid TEXT, ga_client_id TEXT, first_time INTEGER,
         stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','estimate','sold','lost')), estimate_value REAL, sold_value REAL, sold_at TEXT,
-        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)), click_at TEXT, tracking_number TEXT,
+        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)), click_at TEXT, tracking_number TEXT, measurement_opt_in INTEGER CHECK (measurement_opt_in IN (0,1)),
         raw_json TEXT NOT NULL, UNIQUE (kind, source_event_id)
       );
       CREATE TABLE IF NOT EXISTS outbox (
@@ -53,6 +53,7 @@ export class Ledger {
     const cols = this.db.prepare("PRAGMA table_info(leads)").all() as { name: string }[];
     if (!cols.some((c) => c.name === "click_at")) this.db.exec("ALTER TABLE leads ADD COLUMN click_at TEXT");
     if (!cols.some((c) => c.name === "tracking_number")) this.db.exec("ALTER TABLE leads ADD COLUMN tracking_number TEXT");
+    if (!cols.some((c) => c.name === "measurement_opt_in")) this.db.exec("ALTER TABLE leads ADD COLUMN measurement_opt_in INTEGER CHECK (measurement_opt_in IN (0,1))");
   }
 
   /** Idempotent: a re-delivered or reconciled event never creates a second row. */
@@ -80,6 +81,7 @@ export class Ledger {
     const id = Number(r.lastInsertRowid);
     if (e.clickAt) this.db.prepare("UPDATE leads SET click_at = ? WHERE id = ?").run(e.clickAt, id);
     if (e.trackingNumber) this.db.prepare("UPDATE leads SET tracking_number = ? WHERE id = ?").run(e.trackingNumber, id);
+    if (e.measurementOptIn !== undefined) this.db.prepare("UPDATE leads SET measurement_opt_in = ? WHERE id = ?").run(e.measurementOptIn ? 1 : 0, id);
     return { inserted: true, id };
   }
 

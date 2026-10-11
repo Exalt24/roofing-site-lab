@@ -27,7 +27,8 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <label>Neighbourhood or city (optional)<input name="area" autocomplete="address-level2" /></label>
       <label>What is going on with the roof? *<textarea name="message" rows="4" required></textarea></label>
       <label class="check"><input type="checkbox" name="marketing_opt_in" value="yes" /> Email me occasional roofing tips and offers from {ds.business.legalName}, {ds.business.streetAddress}, {ds.business.city} {ds.business.region} {ds.business.postalCode}, {ds.business.email}. This is optional. You can withdraw your consent at any time with the unsubscribe link in every email.</label>
-      <input type="hidden" name="consent_text_version" value="privacy-2026-10" />
+      <label class="check"><input type="checkbox" name="measurement_opt_in" value="yes" /> Let {ds.business.name.replace(" (sample)", "")} measure its advertising with my request: keep the page I arrived on, the advertisement I clicked and a random Google Analytics visitor number with it, and, if this turns into a job, send Google a scrambled (hashed) copy of my phone number and email. This is optional and does not affect my quote.</label>
+      <input type="hidden" name="consent_text_version" value="privacy-2026-10-2" />
       <input type="hidden" name="submission_id" value="" />
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></div>
       <input type="hidden" name="landing_page" value="" />
@@ -41,7 +42,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <input type="hidden" name="ga_client_id" value="" />
       {turnstile && <div class="cf-turnstile" data-sitekey={turnstile}></div>}
       {turnstile && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
-      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, and we keep them for 24 months. See our <a href="/privacy/">privacy page</a>.</p>
+      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, and we keep them for 24 months. The advertising box above is separate and optional. See our <a href="/privacy/">privacy page</a>.</p>
       <button class="btn" type="submit" disabled={!connected}>{connected ? "Send" : "Not connected in this sample"}</button>
       <p class="muted small-print" id="lead-status" role="status"></p>
     </form>
@@ -62,6 +63,8 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
         e.preventDefault();
         readGa(); // the cookie may have been set after this page loaded, so it is read again at the moment of sending
         if (f.dataset.connected !== "yes") return;
+        // without the measurement box the advertising details never leave the browser (the receiver drops them as well)
+        if (!f.elements["measurement_opt_in"].checked) ["landing_page", "gclid", "click_time", "wbraid", "gbraid", "utm_source", "utm_medium", "utm_campaign", "ga_client_id"].forEach(function (k) { f.elements[k].value = ""; });
         var s = document.getElementById("lead-status");
         s.textContent = "Sending...";
         fetch(f.action, { method: "POST", body: new FormData(f) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {

@@ -16,6 +16,7 @@ export interface Ga4Payload { client_id: string; timestamp_micros?: number; even
  *  Session attribution needs a session_id in the params and a request sent within 24 hours of the session start (developers.google.com/analytics/devguides/collection/protocol/ga4/use-cases),
  *  so a weeks-late sold job is not attributed to its session in GA4; it is attributed in Google Ads through the Data Manager upload. Pass sessionId when the lead was captured with one. */
 export function ga4Payload(lead: LeadRow, stage: Ga4Stage, opts: { value?: number; currency?: string; at?: Date; now?: Date; sessionId?: string | number } = {}): { payload: Ga4Payload | null; note: string } {
+  if (lead.kind === "form" && !lead.measurement_opt_in) return { payload: null, note: "the person did not tick the measurement box on the form, so nothing is sent to Google" };
   if (!lead.ga_client_id) return { payload: null, note: "no GA client id was captured for this lead, so GA4 cannot attribute it; use the Google Ads route instead" };
   const now = opts.now ?? new Date();
   const at = opts.at ?? now;
@@ -70,6 +71,7 @@ export type OfflineStage = "estimate" | "sold";
  * transactionId is per lead and stage, so a revised value updates the same conversion and an estimate and a sold job never collide.
  */
 export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value: number; currency?: string; at?: Date; uploadAt?: Date; email?: string | null }): { event: IngestEvent | null; note: string } {
+  if (lead.kind === "form" && !lead.measurement_opt_in) return { event: null, note: "the person did not tick the measurement box on the form, so nothing is sent to Google" };
   const at = opts.at ?? new Date();
   const uploadAt = opts.uploadAt ?? new Date();
   const click = new Date(lead.click_at ?? lead.occurred_at).getTime();

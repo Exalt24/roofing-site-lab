@@ -83,7 +83,7 @@ test("an oversized body is refused", async () => {
   await t.close();
 });
 
-const formData = (over: Record<string, string> = {}) => { const f = new FormData(); const d = { name: "Ana Souza", phone: "604-555-0188", email: "ana@example.com", message: "Water stain under the skylight", website: "", landing_page: "https://seabreeze-roofing.example/contact/?gclid=GG1&utm_source=google", ga_client_id: "123456.7890", ...over }; for (const [k, v] of Object.entries(d)) f.set(k, v); return f; };
+const formData = (over: Record<string, string> = {}) => { const f = new FormData(); const d = { name: "Ana Souza", phone: "604-555-0188", email: "ana@example.com", message: "Water stain under the skylight", website: "", landing_page: "https://seabreeze-roofing.example/contact/?gclid=GG1&utm_source=google", ga_client_id: "123456.7890", measurement_opt_in: "yes", ...over }; for (const [k, v] of Object.entries(d)) f.set(k, v); return f; };
 
 test("a quote form is stored with its click ids first, and the email waits in a durable outbox", async () => {
   const t = await boot();
@@ -96,12 +96,28 @@ test("a quote form is stored with its click ids first, and the email waits in a 
   await t.close();
 });
 
+test("MUTANT: without the separate measurement box a form is stored with what the person typed and nothing else, and no Google upload can be built from it", async () => {
+  const t = await boot();
+  const r = await fetch(t.base + "/api/lead", { method: "POST", body: formData({ measurement_opt_in: "", gclid: "SHOULD-NOT-STAY", click_time: new Date().toISOString(), utm_source: "google" }) });
+  assert.equal(r.status, 200);
+  const row = t.ledger.all()[0];
+  assert.equal(row.measurement_opt_in, 0);
+  for (const k of ["gclid", "wbraid", "gbraid", "ga_client_id", "landing_page_url", "utm_source", "utm_campaign", "click_at"] as const) assert.equal(row[k], null, k);
+  assert.equal(row.phone_e164, "+16045550188");
+  const out = JSON.parse((t.ledger.db.prepare("SELECT payload FROM outbox").get() as { payload: string }).payload);
+  assert.equal(out.text.includes("Page:"), false);
+  assert.equal(adsIngestEvent(row, { stage: "sold", value: 100 }).event, null);
+  assert.equal(ga4Payload(row, "generate_lead").payload, null);
+  assert.match(adsIngestEvent(row, { stage: "sold", value: 100 }).note, /did not tick the measurement box/);
+  await t.close();
+});
+
 test("the notice wording a person saw is stored with the lead, and the marketing box is off unless it was ticked", async () => {
   const t = await boot();
-  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ consent_text_version: "privacy-2026-10", submission_id: "a" }) });
-  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ consent_text_version: "privacy-2026-10", marketing_opt_in: "yes", submission_id: "b" }) });
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ consent_text_version: "privacy-2026-10-2", submission_id: "a" }) });
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ consent_text_version: "privacy-2026-10-2", marketing_opt_in: "yes", submission_id: "b" }) });
   const [plain, opted] = t.ledger.all();
-  assert.equal(plain.consent_version, "privacy-2026-10"); assert.equal(plain.marketing_opt_in, 0, "unticked means no marketing");
+  assert.equal(plain.consent_version, "privacy-2026-10-2"); assert.equal(plain.marketing_opt_in, 0, "unticked means no marketing");
   assert.equal(opted.marketing_opt_in, 1);
   await t.close();
 });
@@ -192,7 +208,7 @@ test("a lead moves new -> estimate -> sold and never backwards", () => {
 
 test("GA4 payload: a recent event keeps its timestamp, an old one drops it and says why, a lead without a client id cannot be sent", () => {
   const l = new Ledger();
-  const { id } = l.insert({ ...parseForm({ id: 9, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/?utm_source=google", submitted_at: "2026-10-05T10:00:00Z" }), gaClientId: "111.222" });
+  const { id } = l.insert({ ...parseForm({ id: 9, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/?utm_source=google", submitted_at: "2026-10-05T10:00:00Z" }), gaClientId: "111.222", measurementOptIn: true });
   const row = l.get(id)!;
   const recent = ga4Payload(row, "generate_lead", { value: 0, at: new Date("2026-10-05T10:00:00Z"), now: new Date("2026-10-06T10:00:00Z") });
   assert.ok(recent.payload?.timestamp_micros);

@@ -9,24 +9,24 @@ Create every account under the company's own email, never a contractor's, so the
 | Account | Used for | Notes |
 |---|---|---|
 | Sanity | The place the crew's jobs are entered, reviewed and published | Free plan has two roles only, Administrator and Viewer. A person who publishes is therefore an Administrator and can also change settings. A restricted Editor role needs the Growth plan (about $15 per seat per month). Content Releases is Enterprise only. |
-| Cloudflare | Hosts the site (Pages) | Free plan covers a site this size. 500 builds a month, shared across all sites in the account. |
-| CallRail | Tracking numbers, call recording, post-call webhook | Paid. The webhook signing key is shown in its settings. |
+| Cloudflare | Hosts the site (Pages) | Free plan covers a site this size. 500 builds a month; a single file on Pages is limited to 25 MiB, so real project videos belong in Sanity or object storage, not in the site. |
+| CallRail | Tracking numbers, call recording, post-call webhook | Paid. The webhook signing key is shown in its settings. Form tracking is on a higher plan; this site posts its own form to the receiver, so it is not needed. |
 | Google Analytics 4 and Tag Manager | Traffic and conversions | Free. Accepting Google's terms is the owner's decision and has to be done by the owner. |
 | Google Search Console and Bing Webmaster Tools | Search visibility | Free. Verified with a meta tag the site template already supports. |
 | Google Ads | Only if they advertise | The offline-conversion upload needs an Ads account and a conversion action. |
 
 ## How a job becomes a page
 
-1. The crew picks the photos and fills the short intake (what the roof was like, what was hard, what was installed, the result). Customer names, phone numbers, emails and street addresses go in the separate private block, never in those boxes. The drafter refuses an intake that has them in the free text and says which box.
+1. The crew picks the photos and fills the short intake (what the roof was like, what was hard, what was installed, the result). In this lab the intake is a file the command reads, there is no staff screen for it yet; a Studio intake document the crew fills in is the first thing to build. Customer names, phone numbers, emails and street addresses go in the separate private block, never in those boxes. The drafter refuses an intake that has them in the free text and says which box.
 2. `tools/draft_to_sanity.mjs` runs the drafter and writes a draft in Sanity. A re-run never overwrites a draft someone has edited; delete the draft in Studio to regenerate it.
 3. A person reads the draft, fills in what the drafter listed as missing, checks the photos carry the right before, during or after label, confirms the homeowner's photo release and any review consent, and presses Publish. Nothing the AI writes can go live without that.
-4. Rebuild and deploy with `tools/deploy_pages.mjs`. Today this is a command. Making Publish trigger the rebuild automatically is not wired.
+4. Rebuild and deploy with `tools/deploy_pages.mjs`. Today this is a command. Making Publish trigger the rebuild automatically is not wired, and it needs a decision first: a Cloudflare Pages project made with Direct Upload (as this one is) cannot be switched to Git integration later, and Cloudflare now steers new projects to Workers, so the usual route is a Git-connected Worker with a deploy hook that a Sanity webhook calls (Sanity publishes fire webhooks, drafts do not).
 
 ## Setting up the lead receiver (not deployed in this lab)
 
-The receiver is a small Node program, `packages/tracking/src/server.ts`, run with `npm run start -w packages/tracking`. It needs a host that stays on and keeps a disk (the ledger is a SQLite file), with Node 22.18 or newer. Settings are environment variables, listed at the top of that file. Point CallRail's post-call webhook at `/callrail/post-call` and the website form at `/api/lead` (set `PUBLIC_LEAD_ENDPOINT` when building the site, otherwise the form is shown as not connected). Set `TRUST_PROXY=1` only when it sits behind a proxy that overwrites the client address. Set `NOTIFY_WEBHOOK_URL` for new-lead notifications. The receiver deletes leads older than 24 months every day, which is what the privacy page promises; CallRail keeps recordings, form submissions and call data for 25 months and its backups can hold deleted data for up to 90 more days (CallRail's retention page), and anything already sent to Google or to the notification address is outside that purge, which is why the privacy page says so.
+The receiver is a small Node program, `packages/tracking/src/server.ts`, run with `npm run start -w packages/tracking`. It needs a host that stays on and keeps a disk (the ledger is a SQLite file), with Node 22.18 or newer. Settings are environment variables, listed at the top of that file. Point CallRail's post-call webhook at `/callrail/post-call` and the website form at `/api/lead` (set `PUBLIC_LEAD_ENDPOINT` when building the site, otherwise the form is shown as not connected). Set `TRUST_PROXY=1` only when it sits behind a proxy that overwrites the client address. Set `NOTIFY_WEBHOOK_URL` for new-lead notifications. CallRail does not resend a failed webhook and may disable a webhook that keeps failing, so the receiver needs a host that stays up and an alert when it does not. The receiver deletes leads older than 24 months every day, which is what the privacy page promises; CallRail keeps recordings, form submissions and call data for 25 months and its backups can hold deleted data for up to 90 more days (CallRail's retention page), and anything already sent to Google or to the notification address is outside that purge, which is why the privacy page says so.
 
-Before the first recorded call: set up CallRail's caller greeting so every caller hears that the call is recorded and why (the privacy page promises this announcement), then ring the tracking number and listen to it. Canadian guidance (the federal Privacy Commissioner) puts the notice at the start of the call and expects a choice, which the unrecorded number in the footer provides. The sample form's consent wording, the privacy page and the greeting are the three places that have to agree.
+Before the first recorded call: set up CallRail's caller greeting so every caller hears that the call is recorded and why (the privacy page promises this announcement), then ring the tracking number and listen to it. Canadian guidance (the federal Privacy Commissioner) says to tell the caller the call is recorded and why, and to offer a choice, which the unrecorded number in the footer provides. The sample form's consent wording, the privacy page and the greeting are the three places that have to agree.
 
 ## A second brand
 
@@ -37,6 +37,7 @@ One brand is one Sanity project, one Cloudflare Pages project and one set of set
 - A lawyer reads the privacy page and the consent wording. They are a starting point built from BC's PIPA, CASL and Google's policies, not legal advice.
 - Replace the sample company, jobs, photos, licence and insurance details, and the placeholder phone number. Every one of them is invented.
 - Check each published photo for people, house numbers and licence plates, and get the written photo release for each job.
+- Decide what the quote form says about ad measurement: it has its own unticked box, and without it the receiver keeps only what the person typed. A lawyer should read that wording with the privacy page.
 - Connect Tag Manager and a real CallRail account, then walk through [VERIFY.md](VERIFY.md) with a real call.
 
 ## What this lab did not do

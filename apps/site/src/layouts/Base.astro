@@ -1,8 +1,8 @@
 ---
 import "../styles/site.css";
 import type { Business } from "@lab/content";
-interface Props { title: string; description: string; canonical: string; business: Business; jsonld?: unknown[]; preloadImage?: string; ogImage?: string; noindex?: boolean; showCredentials?: boolean }
-const { title, description, canonical, business, jsonld = [], preloadImage, ogImage, noindex = false, showCredentials = true } = Astro.props;
+interface Props { title: string; description: string; canonical: string; business: Business; jsonld?: unknown[]; preloadImage?: string; preloadSrcset?: string; preloadSizes?: string; ogImage?: string; noindex?: boolean; showCredentials?: boolean }
+const { title, description, canonical, business, jsonld = [], preloadImage, preloadSrcset, preloadSizes, ogImage, noindex = false, showCredentials = true } = Astro.props;
 // ids and script addresses are pasted into inline script text, so only the documented shapes are accepted; anything else is ignored rather than injected
 const gtmRaw = import.meta.env.PUBLIC_GTM_ID;
 const gtm = typeof gtmRaw === "string" && /^GTM-[A-Z0-9]{4,12}$/.test(gtmRaw) ? gtmRaw : undefined;
@@ -44,7 +44,7 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
     {ogAbs && <meta name="twitter:image" content={ogAbs} />}
     {gsc && <meta name="google-site-verification" content={gsc} />}
     {bing && <meta name="msvalidate.01" content={bing} />}
-    {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {preloadImage && <link rel="preload" as="image" href={preloadImage} imagesrcset={preloadSrcset || undefined} imagesizes={preloadSrcset ? preloadSizes : undefined} fetchpriority="high" />}
     {jsonld.map((j) => <script type="application/ld+json" set:html={JSON.stringify(j).replace(/</g, "\\u003c")} />)}
   </head>
   <body>

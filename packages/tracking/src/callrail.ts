@@ -53,7 +53,7 @@ export interface LeadEvent {
   campaign: string | null;
   utm: { source?: string; medium?: string; campaign?: string };
   gclid?: string; wbraid?: string; gbraid?: string; msclkid?: string;
-  consentVersion?: string; marketingOptIn?: boolean; clickAt?: string; // set for the site's own quote form only (clickAt: when the visitor first arrived from an ad)
+  consentVersion?: string; marketingOptIn?: boolean; measurementOptIn?: boolean; clickAt?: string; // set for the site's own quote form only (clickAt: when the visitor first arrived from an ad)
   gaClientId?: string;
   firstTime: boolean | null;
   trackingNumber: string | null;

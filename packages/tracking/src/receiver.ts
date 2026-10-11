@@ -98,22 +98,26 @@ export function createReceiver(o: ReceiverOptions): Server {
         if (!phone) return json(res, 400, { error: "please enter a phone number we can call" }, origin);
         if (!message || message.length > 2000) return json(res, 400, { error: "please tell us what is going on with the roof (up to 2000 characters)" }, origin);
         if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "that email address does not look right" }, origin);
-        const landing = line("landing_page", 500);
+        // The ad-measurement details (landing page, campaign, ad click id, click time, Google Analytics visitor id) are kept only when the visitor ticked the separate, unticked-by-default measurement box.
+        // Without it the lead is stored with what they typed and nothing else, and it can never reach the Google conversion uploads.
+        const measure = f("measurement_opt_in") === "yes";
+        const landing = measure ? line("landing_page", 500) : "";
         // when the visitor first arrived from an ad, as the page recorded it; only a believable time (not in the future, within the 90 days a click id lives) is kept
-        const clickMs = Date.parse(line("click_time", 40));
+        const clickMs = measure ? Date.parse(line("click_time", 40)) : NaN;
         const nowMs = now().getTime();
         const clickAt = Number.isFinite(clickMs) && clickMs <= nowMs + 60_000 && nowMs - clickMs <= 90 * 86_400_000 ? new Date(clickMs).toISOString() : undefined;
         const ids = clickIds(landing);
+        const m = (k: string, n: number) => (measure ? line(k, n) : "");
         const ev: LeadEvent = {
           kind: "form", sourceEventId: `site-${UUID.test(f("submission_id")) ? f("submission_id").toLowerCase() : o.ledger.newSubmissionId()}`, occurredAt: now().toISOString(), phoneE164: phone, email: email || null, name,
           landingPageUrl: landing || null, source: ids.utm_source ?? null, medium: ids.utm_medium ?? null, campaign: ids.utm_campaign ?? null,
-          utm: { source: line("utm_source", 100) || ids.utm_source, medium: line("utm_medium", 100) || ids.utm_medium, campaign: line("utm_campaign", 200) || ids.utm_campaign },
-          gclid: line("gclid", 200) || ids.gclid, wbraid: line("wbraid", 200) || ids.wbraid, gbraid: line("gbraid", 200) || ids.gbraid, gaClientId: line("ga_client_id", 60) || undefined,
+          utm: { source: m("utm_source", 100) || ids.utm_source, medium: m("utm_medium", 100) || ids.utm_medium, campaign: m("utm_campaign", 200) || ids.utm_campaign },
+          gclid: m("gclid", 200) || ids.gclid, wbraid: m("wbraid", 200) || ids.wbraid, gbraid: m("gbraid", 200) || ids.gbraid, gaClientId: m("ga_client_id", 60) || undefined,
           firstTime: null, trackingNumber: null, raw: { form: "quote", landing_page: landing, service: line("service", 80) || null, area: line("area", 80) || null },
-          consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", clickAt,
+          consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", measurementOptIn: measure, clickAt,
         };
         const r = o.ledger.insert(ev, now());
-        if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}\n\nPage: ${landing}` }, now());
+        if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${landing}` : ""}` }, now());
         return json(res, 200, { ok: true }, origin);
       }
       return json(res, 404, { error: "not found" });

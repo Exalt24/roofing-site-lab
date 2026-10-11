@@ -114,7 +114,7 @@ test("MUTANT: the click time travels with a form lead and the age limits count f
       try {
         const port = (receiver.address() as AddressInfo).port;
         const clicked = new Date(now.getTime() - 80 * 86400000).toISOString();
-        const r = await fetch(`http://127.0.0.1:${port}/api/lead`, { method: "POST", body: form({ gclid: "G9", click_time: clicked, submission_id: "c1" }) });
+        const r = await fetch(`http://127.0.0.1:${port}/api/lead`, { method: "POST", body: form({ gclid: "G9", click_time: clicked, submission_id: "c1", measurement_opt_in: "yes" }) });
         assert.equal(r.status, 200);
         const row = l.all()[0];
         assert.equal(row.click_at, clicked);
@@ -185,7 +185,7 @@ test("MUTANT: a call lead says its age is counted from the call, a form lead wit
   const row = l.get(id)!;
   const at = new Date(new Date(row.occurred_at).getTime() + 86400000);
   assert.match(adsIngestEvent(row, { stage: "sold", value: 1, at, uploadAt: at }).note, /counted from the call time/);
-  assert.equal(adsIngestEvent({ ...row, kind: "form", click_at: row.occurred_at }, { stage: "sold", value: 1, at, uploadAt: at }).note, "ok");
+  assert.equal(adsIngestEvent({ ...row, kind: "form", measurement_opt_in: 1, click_at: row.occurred_at }, { stage: "sold", value: 1, at, uploadAt: at }).note, "ok");
   const now = new Date(row.occurred_at);
   assert.equal(ga4Payload(row, "generate_lead", { at: now, now, sessionId: "12345" }).payload?.events[0].params.session_id, 12345);
   assert.equal(ga4Payload(row, "generate_lead", { at: now, now, sessionId: "abc" }).payload?.events[0].params.session_id, undefined);

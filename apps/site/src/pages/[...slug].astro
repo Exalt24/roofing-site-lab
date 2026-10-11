@@ -5,7 +5,7 @@ import Pic from "../components/Pic.astro";
 import Card from "../components/Card.astro";
 import { loadDataset } from "../lib/data.ts";
 import { assertContentGates } from "../lib/gates.ts";
-import { imgUrl, posterUrl, ogUrl } from "../lib/img.ts";
+import { imgUrl, posterUrl, ogUrl, srcset } from "../lib/img.ts";
 import { monthYear } from "../lib/dates.ts";
 import { all as jsonldFor } from "../lib/jsonld.ts";
 
@@ -27,11 +27,11 @@ const material = page.type === "material" ? ds.materials.find((m) => `/materials
 const area = page.type === "area" ? ds.neighbourhoods.find((n) => `/areas/${n.slug}/` === page.url) : undefined;
 const hero = page.type === "home" ? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0] : project?.photos[0];
 const INDEX_DESCRIPTIONS: Record<string, string> = {
-  "projects-index": `${ds.projects.filter((p) => p.status === "published").length} finished roofing and solar jobs on the North Shore, each with what was wrong, what we did and what happened.`,
+  "projects-index": `${ds.projects.filter((p) => p.status === "published").length} finished roofing and solar jobs in West Vancouver, each with what was wrong, what we did and what happened.`,
   "services-index": "Metal, cedar, asphalt, composite and flat roofing, skylights and solar, each shown through jobs we have finished.",
   "areas-index": "The North Shore neighbourhoods where we have finished enough roofing and solar work to show you.",
 };
-const description = project?.summary ?? service?.summary ?? material?.summary ?? (area ? `Completed roofing projects in ${area.name}, ${area.city}.` : INDEX_DESCRIPTIONS[page.type] ?? "Roofing and solar on the North Shore, shown through the jobs we have actually finished.");
+const description = project?.summary ?? service?.summary ?? material?.summary ?? (area ? `Completed roofing projects in ${area.name}, ${area.city}.` : INDEX_DESCRIPTIONS[page.type] ?? "Roofing and solar in West Vancouver, shown through the jobs we have actually finished.");
 const brand = ds.business.name.replace(" (sample)", "");
 const title = page.type === "home" ? `Roofing and solar in West Vancouver | ${brand}` : `${page.title} | ${brand}`;
 const ogPic = hero ?? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0];
@@ -45,14 +45,14 @@ const crumbs = page.breadcrumbs.length ? [...page.breadcrumbs, { url: page.url, 
 const relatedLinks = page.links.filter((l) => /^\/(services|materials|areas)\//.test(l.url));
 const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/projects\/.+/.test(l.url)).map((l) => ds.projects.find((p) => `/projects/${p.slug}/` === l.url)!).filter(Boolean) : [];
 ---
-<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} ogImage={ogPic ? ogUrl(ogPic.file) : undefined} showCredentials={page.type !== "home"}>
+<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} preloadSrcset={hero ? srcset(hero.file) : undefined} preloadSizes={page.type === "home" ? "100vw" : "(min-width: 900px) 540px, 100vw"} ogImage={ogPic ? ogUrl(ogPic.file) : undefined} showCredentials={page.type !== "home"}>
   {crumbs.length > 0 && <nav class="crumbs" aria-label="Breadcrumb">{crumbs.map((c, i) => <span>{i > 0 && " › "}{i < crumbs.length - 1 ? <a href={c.url}>{c.text}</a> : c.text}</span>)}</nav>}
 
   {page.type === "home" && hero && (
     <section class="hero">
       <Pic file={hero.file} alt={hero.alt} width={hero.width} height={hero.height} sizes="100vw" priority />
       <div class="hero-copy">
-        <h1>Roofing and solar on the North Shore, shown one finished job at a time</h1>
+        <h1>Roofing and solar in West Vancouver, shown one finished job at a time</h1>
         <p>Metal, cedar, shingle, flat roofs, skylights and solar in West Vancouver. Every project page here is a finished job.</p>
         <p><a class="btn" href="/contact/">Get a free quote</a> <a class="btn call" href={`tel:${ds.business.telephone}`} data-track="click_to_call">Call {phone}</a> <a class="btn ghost" style="background:#fff" href="/projects/">See completed projects</a></p>
       </div>
@@ -113,12 +113,12 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
 
   {page.type === "areas-index" && (
     <div class="section"><h1>Areas we serve</h1>
-      <p>A neighbourhood gets its own page only when we have finished enough work there to show you. Today that is:</p>
+      <p>Today these neighbourhoods have a page:</p>
       <p>{page.links.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>
       {withoutPage.length > 0 && <p class="muted">{(() => {
         const withJob = new Set(ds.projects.filter((p) => p.status === "published").map((p) => nName(p)));
         const sentences = withoutPage.map((n) => (withJob.has(n) ? `${n} has a finished job on the projects page, but not yet enough work for an area page.` : `${n} has no finished project to show yet.`));
-        return `An area gets its own page when we have enough finished projects to show you. ${sentences.join(" ")}`;
+        return `A neighbourhood gets its own page when we have enough finished projects there to show you. ${sentences.join(" ")}`;
       })()}</p>}</div>
   )}
 

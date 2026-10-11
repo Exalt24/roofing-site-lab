@@ -40,7 +40,7 @@ test("the Gmail rules: dots and a plus suffix are dropped, whitespace is removed
   assert.equal(normaliseEmail("Jane.Doe+Roof@Example.COM"), "jane.doe+roof@example.com");
   const l = new Ledger();
   const ev = parseCall(call(7));
-  const { id } = l.insert({ ...ev, kind: "form", sourceEventId: "f1", email: "Jane.Doe+Roof@Gmail.com" });
+  const { id } = l.insert({ ...ev, kind: "form", measurementOptIn: true, sourceEventId: "f1", email: "Jane.Doe+Roof@Gmail.com" });
   assert.equal(l.get(id)!.email_sha256, sha256("janedoe@gmail.com"));
 });
 
@@ -117,7 +117,7 @@ test("raw_json keeps only allow-listed fields: no names, formatted numbers, note
   for (const bad of ["Tallow", "Birchwood", "604-555-0100", "recording", "transcription", "voicemail", "Test Caller"]) assert.equal(raw.includes(bad), false, bad);
   assert.ok(raw.includes("CAL6"));
   const f = new Ledger();
-  const { id: fid } = f.insert({ ...parseCall(call(8)), kind: "form", sourceEventId: "F8", raw: { id: "F8", form_data: { Cell: "604-555-0111", "E-mail": "a@b.co", "Street address": "12 Elm Street" }, landing_page_url: "https://x.example/" } });
+  const { id: fid } = f.insert({ ...parseCall(call(8)), kind: "form", measurementOptIn: true, sourceEventId: "F8", raw: { id: "F8", form_data: { Cell: "604-555-0111", "E-mail": "a@b.co", "Street address": "12 Elm Street" }, landing_page_url: "https://x.example/" } });
   const fraw = (f.db.prepare("SELECT raw_json FROM leads WHERE id = ?").get(fid) as { raw_json: string }).raw_json;
   for (const bad of ["604-555-0111", "a@b.co", "Elm Street"]) assert.equal(fraw.includes(bad), false, bad);
   assert.ok(fraw.includes("form_field_names"));
