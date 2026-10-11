@@ -16,3 +16,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npm run build
+      - run: node tools/lighthouse_budget.mjs

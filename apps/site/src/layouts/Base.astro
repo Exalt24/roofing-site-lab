@@ -26,6 +26,8 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={abs} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     {!indexable && <meta name="robots" content="noindex" />}
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={business.name.replace(" (sample)", "")} />
@@ -48,9 +50,7 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
     <header class="site-header">
       <a class="brand" href="/">{business.name.replace(" (sample)", "")}</a>
       <nav aria-label="Main">
-        <a href="/projects/">Projects</a>
-        <a href="/services/">Services</a>
-        <a href="/areas/">Areas</a>
+        {[["/projects/", "Projects"], ["/services/", "Services"], ["/areas/", "Areas"]].map(([href, label]) => <a href={href} aria-current={canonical.startsWith(href) ? "page" : undefined}>{label}</a>)}
         <a href="/contact/" class="btn small">Free quote</a>
       </nav>
       <!-- the visible header number: the only one a call tracking script may swap, and only for tracked visits -->
@@ -70,7 +70,7 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
     <!-- on a phone the two things a homeowner with a leak wants are always one tap away -->
     <div class="sticky-bar" role="region" aria-label="Contact">
       <a class="btn call" href={`tel:${business.telephone}`} data-track="click_to_call">Call {phoneText}</a>
-      <a class="btn ghost" href="/contact/">Free quote</a>
+      {canonical !== "/contact/" && <a class="btn ghost" href="/contact/">Free quote</a>}
     </div>
     <script is:inline set:html={clickSnippet} />
     {gtmSnippet && <script is:inline set:html={gtmSnippet} />}

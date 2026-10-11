@@ -19,6 +19,7 @@ try {
     const j = JSON.parse(r.report);
     const slug = (label + "_" + new URL(url).pathname.replace(/\W+/g, "_")).replace(/_+$/, "");
     fs.writeFileSync(path.join(out, slug + ".json"), r.report);
+    if (j.runtimeError) { console.log(JSON.stringify({ url, error: j.runtimeError.code, status: j.audits["http-status-code"]?.displayValue ?? null })); continue; }
     const a = j.audits;
     const sc = (k) => Math.round(j.categories[k].score * 100);
     console.log(JSON.stringify({ url, lighthouse: j.lighthouseVersion, performance: sc("performance"), accessibility: sc("accessibility"), bestPractices: sc("best-practices"), seo: sc("seo"),

@@ -26,17 +26,18 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 
 | Part | Status |
 |---|---|
-| Content graph and build gates | 12 tests, mutation-checked |
+| Content graph and build gates | 14 tests, mutation-checked |
 | Drafter and validators | 42 tests. Evaluation on a local model (`qwen3:14b`, with `qwen3.5:9b` describing photos): 13 cases, 14 model calls. 2 adversarial cases that have a customer's details typed into the notes are refused before any model call, which is the intended result. Of the other 11, all 11 reached "ready for review", 8 on the first attempt and 3 on the second (`packages/drafter/evals/results/`). The same 13 cases scored 13 of 13 ready, 10 on the first attempt, before the intake screen existed |
 | Draft written into Sanity from an intake | Run end to end against the hosted Studio (`tools/draft_to_sanity.mjs`) for one job; the screens in the clip are that draft |
 | Call tracking receiver, ledger and builders | 33 tests, including signature, replay, idempotency, reconcile, click-id and phone/email age limits, consent storage, header injection, retention and the runnable server; run against recorded-shape payloads, **not against a live CallRail account**. The nightly CallRail reconcile request follows CallRail's published API reference and has **not** been run against an account |
 | GA4 payloads | Accepted by Google's own validation server (`tools/validate_ga4_payload.mjs`), which also rejects a bad payload, so a clean run means something |
 | Google Ads payloads | Built to the Data Manager API's documented shape; **never sent**, there is no Ads account behind this lab |
 | CallRail number swapping | Built against CallRail's documented behaviour and tested with a **simulator** (`apps/site/public/callrail-sim.js`) that is not CallRail's code and is not deployed with the live site: the `noswap` attribute, the "All Except Direct & Organic" pool, no automatic rescan. 8 tests |
-| Site structure | 7 tests on the built HTML of all 35 pages: one H1, no skipped heading levels, skip link, share tags, credentials, JSON-LD parses, honest contact form, 404, and a Tag Manager id with script text in it is ignored. 3 more check image metadata |
+| Site structure | 7 tests on the built HTML of all 35 pages and 1 on the rendered form layout (proven by mutation): one H1, no skipped heading levels, skip link, share tags, credentials, JSON-LD parses, honest contact form, 404, and a Tag Manager id with script text in it is ignored. 3 more check image metadata |
+| Performance budget in CI | `tools/lighthouse_budget.mjs` runs after the build and fails it on accessibility under 100, layout shift over 0.05, blocking time over 200 ms or more than 60 KB of script, on four pages of the fixture build; it was shown to fail on an impossible budget. Performance score and LCP are only checked against a live URL (`--url`), because the fixture build serves full-size sample PNGs from disk |
 | Google Analytics, Tag Manager, Search Console, Bing | **Connected on the live sample, on a test Google account.** A GA4 property and a Tag Manager container: a Google tag plus `click_to_call` and `generate_lead` event tags, exported in `docs/gtm-container.json`. Driven end to end: a visit from a real browser put `page_view`, `click_to_call`, `first_visit` and `session_start` in GA4's Realtime report (headless Chrome is filtered as a bot and shows nothing). `generate_lead` is configured but has not fired, because the sample form is not connected. Search Console is verified by meta tag with the sitemap submitted (it read "Couldn't fetch" right after submission, which is common on a new site). Bing Webmaster Tools is verified by meta tag; its sitemap form returned a server error, so the 34 URLs went in through IndexNow instead (`tools/indexnow.mjs`, accepted with 202). The ids come from `PUBLIC_GTM_ID`, `PUBLIC_GSC_TOKEN` and `PUBLIC_BING_TOKEN` |
 | Hosted site and Studio | Cloudflare Pages (`tools/deploy_pages.mjs`) and a hosted Sanity Studio |
-| Total | 105 tests across four packages |
+| Total | 108 tests across four packages |
 
 Known limit of the drafter: the validators check facts, numbers and names, not meaning. A summary can still say "replacing" when the intake never said anything was replaced. That is why a person publishes.
 
@@ -71,7 +72,7 @@ My arithmetic from the vendors' published pricing, read 2026-10-12, for about 3,
 | CallRail | about $51 to $56 (Lead Tracking from $50 to $55 with 5 numbers and 250 minutes; 90 calls is 270 minutes, so 20 extra minutes at $0.06) | about $260 (90 calls becomes 900, 2,700 minutes, 2,450 over the included 250 at $0.06 is $147, plus $50 to $55 base, plus 20 extra numbers at $3) |
 | **Total** | **about $51 to $56 a month** | **about $260 a month, almost all CallRail** |
 
-What bites first on the free tiers: Cloudflare's 500 builds a month if every publish triggers a rebuild, so batch publishes into one build every few minutes, and never poll CallRail's API when webhooks and one nightly reconcile will do.
+What bites first on the free tiers: Cloudflare's 500 builds a month counts builds Cloudflare runs from a connected Git repository (this repo deploys by direct upload, which it does not count), so it only matters if every publish is wired to a Git-connected rebuild; so batch publishes into one build every few minutes, and never poll CallRail's API when webhooks and one nightly reconcile will do.
 
 ## Run it
 
@@ -80,7 +81,7 @@ Needs Node 22.18 or newer (the tests run TypeScript directly) and, for the site 
 ```sh
 npm install
 npx playwright install chromium
-npm test                      # 105 tests across four packages
+npm test                      # 108 tests across four packages
 npm run build                 # builds from fixtures when no Sanity project id is set
 ```
 

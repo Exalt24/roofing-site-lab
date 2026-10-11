@@ -100,3 +100,14 @@ video { aspect-ratio: 16 / 9; height: auto; }
 .card h2 { font-size: 1.1rem; margin: 0 0 .5em; }
 .trust-footer { margin-top: 0; border: 0; padding-left: 0; padding-right: 0; justify-content: flex-start; background: transparent; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+/* third pass, from output round 2 */
+form.lead label.check { display: flex; align-items: flex-start; gap: 10px; font-weight: 400; }
+form.lead label.check input { width: auto; margin-top: .35em; }
+.hero a:focus-visible, .hero button:focus-visible { outline-color: #fff; }
+.hero .btn { text-shadow: none; }
+.site-header .brand { min-height: 44px; display: inline-flex; align-items: center; }
+.card-body h2 a { display: inline-block; padding: 10px 0; }
+.section p a[href^="tel:"] { display: inline-block; padding: 10px 4px; }
+.btn:disabled { min-height: 44px; }
+video { object-fit: cover; }
+nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }

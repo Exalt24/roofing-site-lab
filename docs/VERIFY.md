@@ -11,7 +11,7 @@ A tracking set-up fails quietly: Google's Measurement Protocol does not return a
 | 5 | A real call reaches the ledger | Call a tracking number from a browser that landed with `?gclid=test` | A row appears in the lead ledger with the click id and source. CallRail may take up to 20 minutes to attach a recording or transcript before it fires the post-call webhook. |
 | 6 | The number swap works on a tracked visit and not on an organic one | Open the site with `?utm_source=google&utm_medium=cpc`, then with no parameters | Header number is the tracking number in the first and the real number in the second. The footer number never swaps (`data-calltrk-noswap`). |
 | 7 | Google Ads accepts the upload | Build the request with `adsIngestRequest(...)` (it defaults to `validateOnly: true`) and send it to the Data Manager API `ingest` method | A `requestId` and no `fieldWarnings`. Then set `validateOnly` to false, wait at least 3 hours (up to 72 for gbraid and wbraid) and read the offline data diagnostics page. |
-| 8 | Nothing is counted twice | CallRail's own GA4 integration already sends calls and forms as events, and can post its own Google Ads call conversion | Our GA4 events are `qualify_lead` and `close_convert_lead` and our Ads conversions are the estimate and sold stages, none of which collide with the names CallRail sends. |
+| 8 | Nothing is counted twice | CallRail's own GA4 integration already sends calls and forms as events, and can post its own Google Ads call conversion | Our GA4 events are `generate_lead`, `qualify_lead` and `close_convert_lead` and our Ads conversions are the estimate and sold stages, none of which collide with the names CallRail sends. |
 
 ## Silent failures worth a monitor
 

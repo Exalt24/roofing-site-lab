@@ -133,3 +133,15 @@ test("the JSON-LD on a project page validates structurally: Article with images,
   assert.equal(ld.some((x) => x["@type"] === "FAQPage" || x.aggregateRating), false, "no FAQ markup and no self-review stars");
   await page.close();
 });
+
+test("the marketing opt-in checkbox sits on the same row as its label text, at its natural size", async () => {
+  for (const [w, h] of [[390, 844], [1280, 800]]) {
+    const page = await browser.newPage({ viewport: { width: w, height: h } });
+    await page.goto(BASE + "/contact/", { waitUntil: "load" });
+    const box = await page.locator("label.check input").boundingBox();
+    const text = await page.locator("label.check").boundingBox();
+    assert.ok(box.width < 30, `checkbox is ${box.width}px wide at ${w}px (a full-width box means the grid rule won)`);
+    assert.ok(Math.abs(box.y - text.y) < 20 && box.x < text.x + 40, `checkbox is detached from its label at ${w}px`);
+    await page.close();
+  }
+});

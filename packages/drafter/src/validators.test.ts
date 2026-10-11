@@ -37,7 +37,7 @@ const mutants: [string, (d: Draft) => void, RegExp, ((i: Intake) => void)?][] = 
   ["the wrong neighbourhood", (d) => { d.relatedNeighbourhoodSlug = "ambleside"; }, /different neighbourhood/],
   ["an unknown service slug", (d) => { d.relatedServiceSlugs = ["moon-roofing"]; }, /unknown service slug/],
   ["a copy of an existing page", (d) => {
-    const ex = ctx.existingNarratives[0].text;
+    const ex = [...ctx.existingNarratives].sort((a, b) => b.text.length - a.text.length)[0].text; // the longest page, so the slices below are never empty
     d.summary = ex.slice(0, 280);
     d.sections[0].body = ex.slice(280, 700);
     d.sections[1].body = ex.slice(700, 1100);
