@@ -10,7 +10,7 @@ export interface LeadRow {
   landing_page_url: string | null; source: string | null; medium: string | null; campaign: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null;
   gclid: string | null; wbraid: string | null; gbraid: string | null; msclkid: string | null; ga_client_id: string | null; first_time: number | null;
   stage: Stage; estimate_value: number | null; sold_value: number | null; sold_at: string | null;
-  consent_version: string | null; marketing_opt_in: number; // the wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
+  click_at: string | null; consent_version: string | null; marketing_opt_in: number; // the wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
 }
 
 export const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
@@ -41,7 +41,7 @@ export class Ledger {
         source TEXT, medium TEXT, campaign TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT,
         gclid TEXT, wbraid TEXT, gbraid TEXT, msclkid TEXT, ga_client_id TEXT, first_time INTEGER,
         stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','estimate','sold','lost')), estimate_value REAL, sold_value REAL, sold_at TEXT,
-        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)),
+        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)), click_at TEXT,
         raw_json TEXT NOT NULL, UNIQUE (kind, source_event_id)
       );
       CREATE TABLE IF NOT EXISTS outbox (
@@ -49,6 +49,9 @@ export class Ledger {
         attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, sent_at TEXT, last_error TEXT, claimed_at TEXT
       );
     `);
+    // a database made before click_at existed gets the column added
+    const cols = this.db.prepare("PRAGMA table_info(leads)").all() as { name: string }[];
+    if (!cols.some((c) => c.name === "click_at")) this.db.exec("ALTER TABLE leads ADD COLUMN click_at TEXT");
   }
 
   /** Idempotent: a re-delivered or reconciled event never creates a second row. */
@@ -63,7 +66,9 @@ export class Ledger {
       const existing = this.db.prepare("SELECT id FROM leads WHERE kind = ? AND source_event_id = ?").get(e.kind, e.sourceEventId) as { id: number };
       return { inserted: false, id: existing.id };
     }
-    return { inserted: true, id: Number(r.lastInsertRowid) };
+    const id = Number(r.lastInsertRowid);
+    if (e.clickAt) this.db.prepare("UPDATE leads SET click_at = ? WHERE id = ?").run(e.clickAt, id);
+    return { inserted: true, id };
   }
 
   get(id: number): LeadRow | undefined { return this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined; }
@@ -91,7 +96,7 @@ export class Ledger {
     const r = this.db.prepare("INSERT INTO outbox (lead_id, channel, payload, next_attempt_at) VALUES (?,?,?,?)").run(leadId, channel, JSON.stringify(payload), now.toISOString());
     return Number(r.lastInsertRowid);
   }
-  /** A message that has failed 12 times (about two days of backoff) stops being retried and stays in the table for a person to look at. */
+  /** A message that has failed 12 times (about 16 hours of backoff in total) stops being retried and stays in the table for a person to look at. */
   due(now = new Date()) { return this.db.prepare("SELECT * FROM outbox WHERE sent_at IS NULL AND attempts < 12 AND next_attempt_at <= ? ORDER BY id").all(now.toISOString()) as unknown as { id: number; lead_id: number; channel: string; payload: string; attempts: number }[]; }
   /** Two overlapping drains must not both send the same row: the first to claim it wins, and a claim older than 10 minutes counts as abandoned. */
   claim(id: number, now = new Date()): boolean {
@@ -99,25 +104,36 @@ export class Ledger {
     return Number(this.db.prepare("UPDATE outbox SET claimed_at=? WHERE id=? AND sent_at IS NULL AND (claimed_at IS NULL OR claimed_at < ?)").run(now.toISOString(), id, stale).changes) === 1;
   }
   /** Once sent, the message body (a name, a phone number, what the person wrote) is blanked: the ledger keeps the lead, the outbox does not keep a second copy. */
-  markSent(id: number, now = new Date()) { this.db.prepare("UPDATE outbox SET sent_at=?, last_error=NULL, payload='{}', claimed_at=NULL WHERE id=?").run(now.toISOString(), id); }
+  markSent(id: number, now = new Date()) {
+    this.db.prepare("UPDATE outbox SET sent_at=?, last_error=NULL, payload='{}', claimed_at=NULL WHERE id=?").run(now.toISOString(), id);
+    this.scrub(); // the blanked message text must not linger in the write-ahead log either
+  }
+
+  /** Empties the write-ahead log and the free list so deleted or blanked text is not left in the file. Returns false when another connection is reading and the log could not be emptied yet. */
+  scrub(): boolean {
+    const r = this.db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy?: number } | undefined;
+    return !r || r.busy === 0;
+  }
   markFailed(id: number, error: string, now = new Date()) {
     const row = this.db.prepare("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts: number } | undefined;
     if (!row) return;
-    const wait = Math.min(2 ** row.attempts * 60, 4 * 3600); // 1, 2, 4, ... minutes, capped at 4 hours
+    const wait = Math.min(2 ** row.attempts * 60, 4 * 3600); // 1, 2, 4, ... minutes, capped at 4 hours (so 11 failures wait about 16 hours in total)
     this.db.prepare("UPDATE outbox SET attempts=attempts+1, last_error=?, next_attempt_at=?, claimed_at=NULL WHERE id=?").run(error.slice(0, 300), new Date(now.getTime() + wait * 1000).toISOString(), id);
   }
   pending(): number { return (this.db.prepare("SELECT COUNT(*) c FROM outbox WHERE sent_at IS NULL").get() as { c: number }).c; }
   newSubmissionId(): string { return randomUUID(); }
 
   /** The privacy page promises quote requests and call records are deleted after a fixed number of months. This is the job that does it: leads older than the cutoff go, with their outbox rows. Run it daily. */
-  purgeOlderThan(months: number, now = new Date()): { leads: number; outbox: number } {
+  purgeOlderThan(months: number, now = new Date()): { leads: number; outbox: number; scrubbed: boolean } {
+    if (!Number.isInteger(months) || months < 1) throw new Error("months must be a whole number, 1 or more");
     const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - months);
     const iso = cutoff.toISOString();
     const outbox = Number(this.db.prepare("DELETE FROM outbox WHERE lead_id IN (SELECT id FROM leads WHERE received_at < ?)").run(iso).changes);
     const leads = Number(this.db.prepare("DELETE FROM leads WHERE received_at < ?").run(iso).changes);
     // "deleted" has to mean gone from the file: secure_delete zeroes freed pages and the checkpoint plus VACUUM drops them from the write-ahead log and the free list
-    if (leads || outbox) { this.db.exec("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;"); }
-    return { leads, outbox };
+    let scrubbed = true;
+    if (leads || outbox) { this.db.exec("VACUUM"); scrubbed = this.scrub(); }
+    return { leads, outbox, scrubbed };
   }
 }
 

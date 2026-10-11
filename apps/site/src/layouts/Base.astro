@@ -12,6 +12,8 @@ const indexable = import.meta.env.PUBLIC_NOINDEX !== "true" && !noindex;
 const ogAbs = ogImage ? new URL(ogImage, business.url).toString() : undefined;
 const gtmSnippet = gtm ? `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');` : "";
 const callrailSnippet = callrail ? `(function(){var s=document.createElement('script');s.async=true;s.src='${callrail}';document.head.appendChild(s);})();` : "";
+// on every page: remember the ad click ids and campaign, WHEN the visitor first arrived from an ad, and the page they first landed on, so a quote request made two pages later still carries them
+const landingSnippet = `(function(){try{var q=new URLSearchParams(location.search);["gclid","wbraid","gbraid","utm_source","utm_medium","utm_campaign"].forEach(function(k){if(q.get(k))sessionStorage.setItem("lab_"+k,q.get(k));});if((q.get("gclid")||q.get("wbraid")||q.get("gbraid"))&&!sessionStorage.getItem("lab_click_time"))sessionStorage.setItem("lab_click_time",new Date().toISOString());if(!sessionStorage.getItem("lab_landing"))sessionStorage.setItem("lab_landing",location.href);}catch(e){}})();`;
 const clickSnippet = `document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[data-track='click_to_call']"):null;if(!a)return;(window.dataLayer=window.dataLayer||[]).push({event:"click_to_call",link_location:a.closest("header")?"header":a.closest("footer")?"footer":a.closest(".sticky-bar")?"sticky_bar":"page"});});`;
 const abs = new URL(canonical, business.url).toString();
 const phoneText = business.telephone.replace(/^\+1-/, "").replace("-", " ");
@@ -72,6 +74,7 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
       <a class="btn call" href={`tel:${business.telephone}`} data-track="click_to_call">Call {phoneText}</a>
       {canonical !== "/contact/" && <a class="btn ghost" href="/contact/">Free quote</a>}
     </div>
+    <script is:inline set:html={landingSnippet} />
     <script is:inline set:html={clickSnippet} />
     {gtmSnippet && <script is:inline set:html={gtmSnippet} />}
     {callrailSnippet && <script is:inline set:html={callrailSnippet} />}

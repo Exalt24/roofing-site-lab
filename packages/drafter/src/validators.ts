@@ -7,10 +7,10 @@ import type { Context, Draft, Fact, Intake, Report, SectionKey } from "./types.t
 const SECTION_FACT_LABEL: Record<SectionKey, string> = { existingConditions: "what the roof was like before", challenges: "what was hard", solution: "what was installed", outcome: "the result" };
 const SECTION_INTAKE: Record<SectionKey, keyof Intake> = { existingConditions: "existingConditions", challenges: "whatWasHard", solution: "whatWeDid", outcome: "outcome" };
 
-export const BANNED = /\b(guarantee[ds]?|guaranty|warrant(?:y|ies)|lifetime|best in|number one|cheapest|lowest price|fully insured|licensed|certified|award[- ]winning|years of experience|storm[- ]proof|leak[- ]proof|never leak|for life|forever|lasts a lifetime)\b|#1/i;
+export const BANNED = /\b(guarantee[ds]?|guaranty|warrant(?:y|ies)|life ?time|best in|number one|cheapest|lowest price|unbeatable|free estimates?|financing|fully[- ]insured|licen[sc]ed|certified|award[- ]winning|years of experience|storm[- ]?proof|leak[- ]?proof|never leak|for life|forever|for decades|will stay dry)\b|#1/i;
 
 /** Spelled-out numbers (digits are checked separately). "one" is left out because it is ordinary English ("no one", "one of the"). */
-const NUMBER_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, dozen: 12 };
+const NUMBER_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, thirteen: 13, fourteen: 14, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, dozen: 12 };
 /** A North American phone number written any common way: 604-555-0142, (604) 555 0142, 604.555.0142, 6045550142, +1 604 555 0142. */
 const PHONE_PATTERN = /(?<![\d])(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)/;
 const STOP_CAPS = new Set(["this", "that", "these", "those", "the", "new", "old", "all", "each", "both", "same", "some", "every", "other", "another", "standing", "composite", "synthetic", "architectural", "dark", "light", "grey", "gray", "black", "white", "charcoal"]);
@@ -36,12 +36,21 @@ export function draftText(d: Draft): string {
   return [d.title, d.summary, ...d.sections.map((s) => s.body), d.seo.title, d.seo.description, ...d.photos.flatMap((p) => [p.alt, p.caption]), ...d.internalLinkSuggestions.flatMap((l) => [l.anchor, l.why])].join("\n");
 }
 
+/** Ordinary words that begin a sentence and are capitalised only for that reason. A sentence-initial word NOT in this list and not in the entered facts is treated as a possible invented name or brand. */
+const SENTENCE_STARTERS = new Set(("the a an we our it its this that these those they their there then than after before during with without because since while although once when where which who what why how all each every some most many few several both either neither new old " +
+  "roof roofs roofing shingle shingles metal cedar slate tile tiles flat sloped skylight skylights solar panel panels ridge eaves valley valleys flashing underlayment membrane vent vents deck decks house home homes owners owner crew crews job jobs work works project projects ice water leak leaks damage rain wind snow moss " +
+  "installing installed replacing replaced repairing repaired removing removed adding added fixing fixed using used built building finished finishing completed completing started starting also still now today next last first second third one two three four five six seven eight nine ten into onto over under around across through between against along " +
+  "instead rather however therefore thus so but and or nor yet if unless until whether as at by for from in of on to up down out off no not never always often sometimes only just even very much more less better best good great clean careful carefully every other another such same different easy hard tight narrow steep wet dry damp warm cold dark modern light bright strong solid durable quality premium natural traditional classic simple smooth heavy thick thin tall small large big long short high low full whole entire original existing previous proper secure safe fresh additional extra sealed standard typical local rotted rotten failed failing worn aging damaged cracked leaking loose missing broken bare open rough uneven stained mossy").split(/\s+/));
+const HONORIFIC_NAME = /\b(?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][A-Za-z'’-]+/g;
+const LINK_OR_MARKUP = /https?:\/\/\S+|\bwww\.\S+|\]\(|<\/?[a-z][^>]*>|\b[a-z0-9-]+\.(?:com|ca|net|org|io|example)\b/gi;
+
 function properNames(text: string): string[] {
   const out = new Set<string>();
-  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+  for (const sentence of text.replace(/\b(Mr|Mrs|Ms|Dr|St|Ave|Rd)\./g, "$1").split(/(?<=[.!?])\s+|\n+/)) {
     const toks = sentence.split(/\s+/).filter(Boolean);
-    for (let i = 1; i < toks.length; i++) {
+    for (let i = 0; i < toks.length; i++) {
       const m = toks[i].replace(/[^A-Za-z'’-]/g, "");
+      if (i === 0 && SENTENCE_STARTERS.has(m.toLowerCase())) continue;
       if (/^[A-Z][a-z]{2,}/.test(m)) {
         let name = m; let j = i + 1;
         while (j < toks.length && /^[A-Z][a-z]{2,}/.test(toks[j].replace(/[^A-Za-z'’-]/g, ""))) { name += " " + toks[j].replace(/[^A-Za-z'’-]/g, ""); j++; }
@@ -90,7 +99,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   const facts = buildFacts(intake, ctx);
   const byId = new Map<string, Fact>(facts.map((f) => [f.id, f]));
   const entered = facts.filter((f) => f.kind === "entered");
-  const enteredText = lc(entered.map((f) => f.value).join("\n") + "\n" + ctx.services.map((s) => s.name).join(" ") + " " + ctx.materials.filter((m) => intake.materialSlugs.includes(m.slug)).map((m) => m.name).join(" "));
+  const enteredText = lc(entered.map((f) => f.value).join("\n") + "\n" + ctx.services.filter((s) => intake.serviceSlugs.includes(s.slug)).map((s) => s.name).join(" ") + " " + ctx.materials.filter((m) => intake.materialSlugs.includes(m.slug)).map((m) => m.name).join(" "));
   const text = draftText(d);
   // numbers the staff entered, WITHOUT the digits of the finish date (the "10" in 2026-10-05 must not make "10 days" look supported); the year itself is allowed
   const enteredNumbers = new Set<string>([...entered.filter((f) => f.label !== "completed on").flatMap((f) => numbersOf(f.value)), ...(intake.completedOn.match(/^\d{4}/) ?? [])]);
@@ -129,8 +138,8 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   // what a vision model saw in a photo ("two brick chimneys") may be repeated in that photo's alt text and caption, and only there
   const visualWords = new Set(lc(facts.filter((f) => f.kind === "visual").map((f) => f.value).join(" ")).split(/[^a-z]+/).filter(Boolean));
   const photoText = d.photos.flatMap((p) => [p.alt, p.caption]).join("\n");
-  const nonPhotoText = text.split(photoText).join(" ");
-  const flag = (t: string, known: Set<string>) => { for (const w of lc(t).split(/[^a-z]+/)) if (w in NUMBER_WORDS && !known.has(w) && !enteredNumbers.has(String(NUMBER_WORDS[w]))) spelled.add(w); };
+  const nonPhotoText = photoText ? text.split(photoText).join(" ") : text;
+  const flag = (t: string, known: Set<string>) => { for (const w of lc(t).split(/[^a-z]+/)) if (Object.hasOwn(NUMBER_WORDS, w) && !known.has(w) && !enteredNumbers.has(String(NUMBER_WORDS[w]))) spelled.add(w); };
   flag(nonPhotoText, enteredWords);
   flag(photoText, new Set([...enteredWords, ...visualWords]));
   for (const w of spelled) errors.push(`the number word "${w}" appears in the draft but in no entered fact`);
@@ -138,7 +147,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   // a brand-like capitalised word in front of a material noun ("Malarkey shingles"), anywhere, including the first word of a sentence and the headings
   for (const m of text.matchAll(BRAND_BEFORE_MATERIAL)) {
     const w = lc(m[1]);
-    if (!enteredWords.has(w) && !vocabOf(enteredText).has(w) && !STOP_CAPS.has(w)) errors.push(`the brand-like name "${m[1]}" in "${m[0]}" appears in the draft but nowhere in the entered facts`);
+    if (!enteredWords.has(w) && !vocabOf(enteredText).has(w) && !STOP_CAPS.has(w) && !SENTENCE_STARTERS.has(w)) errors.push(`the brand-like name "${m[1]}" in "${m[0]}" appears in the draft but nowhere in the entered facts`);
   }
 
   const keys = d.sections.map((s) => s.key);
@@ -151,8 +160,11 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   for (const name of properNames(sentences)) {
     const n = lc(name);
     if (allowedNames.has(n) || name.split(" ").every((w) => allowedNames.has(lc(w)))) continue;
-    if (!enteredText.includes(n)) errors.push(`the name "${name}" appears in the draft but nowhere in the entered facts`);
+    // every word of the name has to be a WHOLE word of the entered facts ("Kit" is not supported by "kitchen")
+    if (!name.split(" ").every((w) => vocabOf(enteredText).has(lc(w)))) errors.push(`the name "${name}" appears in the draft but nowhere in the entered facts`);
   }
+  for (const m of text.matchAll(HONORIFIC_NAME)) errors.push(`a person's name "${m[0]}" appears in the draft; public text names no individual`);
+  for (const m of text.matchAll(LINK_OR_MARKUP)) errors.push(`public text carries a link or markup ("${m[0].slice(0, 40)}"); the draft may not add addresses or tags`);
   for (const m of text.matchAll(/\b([A-Z][a-z]{3,})(?:\s+[A-Z][a-z]+)*\s+(?:Systems|Mill|Ltd|Inc|Corp|Industries|Manufacturing|Supply|Co)\b/g)) {
     if (!enteredText.includes(lc(m[1]))) errors.push(`the brand-like name "${m[0]}" appears in the draft but nowhere in the entered facts`);
   }
@@ -161,7 +173,9 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   for (const heading of [d.title, d.seo.title]) for (const w of lc(heading).split(/[^a-z0-9']+/).filter((x) => x.length > 3)) if (!vocab.has(w) && !stop.has(w) && !allowedNames.has(w)) warnings.push(`the heading "${heading}" uses "${w}", which is in no entered fact`);
 
   // 4. invented materials
+  const cedarFamily = /\b(cedar|shakes?|shingles?)\b/i.test(enteredText); // a cedar job is described as shakes or shingles interchangeably
   for (const term of MATERIAL_LEXICON) {
+    if (cedarFamily && (term === "shake" || term === "shingle")) continue;
     if (new RegExp(`\\b${term.replace(/[-\s]/g, "[-\\s]?")}s?\\b`, "i").test(text) && !new RegExp(term.replace(/[-\s]/g, "[-\\s]?"), "i").test(enteredText)) errors.push(`the material "${term}" appears in the draft but not in the entered facts`);
   }
 

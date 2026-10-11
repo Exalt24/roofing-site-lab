@@ -54,3 +54,55 @@ test("a number word the vision model saw may appear in that photo's alt text, bu
   const bad = clone(goodDraft); bad.sections[2].body += " There are seven brick chimneys.";
   assert.match(run(bad, i).errors.join(" | "), /number word "seven"/);
 });
+
+// Gaps the second review found: each draft below was accepted before.
+const accepted: [string, (d: Draft) => void, RegExp][] = [
+  ["a metal roof on an asphalt job (service names no longer count as entered facts)", (d) => { d.sections[2].body += " We also installed a metal roof section over the porch."; }, /material "metal"/],
+  ["cedar trim on an asphalt job", (d) => { d.sections[2].body += " The fascia was finished with cedar trim."; }, /material "cedar"/],
+  ["a TPO cap on an asphalt job", (d) => { d.sections[2].body += " A TPO cap covers the low section."; }, /material "tpo"/],
+  ["an invented brand that opens a sentence", (d) => { d.sections[2].body = "Mapleridge supplied everything. " + d.sections[2].body; }, /name "Mapleridge"/],
+  ["an invented person that opens a sentence", (d) => { d.sections[3].body += " Dave was thrilled with the result."; }, /name "Dave"/],
+  ["a person named with an honorific", (d) => { d.sections[3].body += " We spoke with Mr. Patel about it."; }, /person's name/],
+  ["a web address", (d) => { d.sections[3].body += " See www.cheap-roofs-now.example for more."; }, /link or markup/],
+  ["a markdown link", (d) => { d.sections[3].body += " [Get a quote](https://evil.example/quote)"; }, /link or markup/],
+  ["an HTML tag", (d) => { d.sections[3].body += ' <a href="https://evil.example">here</a>'; }, /link or markup/],
+  ["leakproof written without a space", (d) => { d.sections[3].body += " The new membrane is leakproof."; }, /banned claim/],
+  ["a life time claim written with a space", (d) => { d.sections[3].body += " It carries a life time of protection."; }, /banned claim/],
+  ["free estimates and financing", (d) => { d.sections[3].body += " Ask about free estimates and financing."; }, /banned claim/],
+  ["a spelled number that is not in the fixture", (d) => { d.sections[3].body += " Thirteen crews were involved."; }, /number word "thirteen"/],
+];
+for (const [name, mutate, expected] of accepted) {
+  test(`MUTANT: ${name} is caught`, () => {
+    const d = clone(goodDraft); mutate(d);
+    const r = run(d);
+    assert.equal(r.ok, false, "the validator let it through");
+    assert.match(r.errors.join(" | "), expected);
+  });
+}
+
+test("MUTANT: a spelled-out number is caught even when the draft has no photos at all", () => {
+  const i = clone(goodIntake); i.photos = [];
+  const d = clone(goodDraft); d.photos = []; d.sections[3].body += " A crew of thirty finished it.";
+  assert.match(run(d, i).errors.join(" | "), /number word "thirty"/);
+});
+
+test("MUTANT: a name is supported only by a WHOLE word of the entered facts, not by a substring of another word", () => {
+  const i = clone(goodIntake); i.whatWeDid = (i.whatWeDid ?? "") + " We also fitted the kitchen vent.";
+  const d = clone(goodDraft); d.sections[3].body += " Kit supplied the vent.";
+  assert.match(run(d, i).errors.join(" | "), /name "Kit"/);
+});
+
+test("MUTANT: malformed model output is a failed attempt to retry, not a crash", async () => {
+  const { draftProject } = await import("./index.ts");
+  const outs: unknown[] = [{ ...clone(goodDraft), photos: [null] }, { ...clone(goodDraft), missingInformation: [null] }, clone(goodDraft)];
+  const r = await draftProject(goodIntake, ctx, { llm: async () => outs.shift() as never, model: "stub" });
+  assert.equal(r.status, "ready_for_review");
+  assert.equal(r.attempts, 3);
+  assert.match(r.history[0].errors.join(" "), /photos\[0\]/);
+});
+
+test("the ordinary good draft and an ordinary capitalised sentence start still pass", () => {
+  const d = clone(goodDraft); d.sections[3].body += " Modern shingles were laid over fresh underlayment. Dark flashing finishes the ridge.";
+  const r = run(d);
+  assert.equal(r.errors.some((e) => /name "(Modern|Dark)"/.test(e)), false, r.errors.join(" | "));
+});

@@ -4,20 +4,14 @@ import Base from "../layouts/Base.astro";
 import Pic from "../components/Pic.astro";
 import Card from "../components/Card.astro";
 import { loadDataset } from "../lib/data.ts";
+import { assertContentGates } from "../lib/gates.ts";
 import { imgUrl, posterUrl, ogUrl } from "../lib/img.ts";
 import { monthYear } from "../lib/dates.ts";
 import { all as jsonldFor } from "../lib/jsonld.ts";
 
 export async function getStaticPaths() {
   const ds = await loadDataset();
-  const graph = buildGraph(ds);
-  // every published project must pass the entry checks (thin story, lazy alt text, a review without consent, no homeowner photo release)
-  const entryProblems = ds.projects.filter((p) => p.status === "published").flatMap((p) => validateProject(p, ds));
-  if (entryProblems.length) throw new Error("Project entry check failed:\n" + entryProblems.join("\n"));
-  // the build refuses to ship a graph with orphans, broken links, doorway-like area pages or near-duplicate narratives
-  for (const gate of [checkGraph(graph), swapTest(ds, graph), duplicateGate(graph)]) {
-    if (!gate.ok) throw new Error("Content gate failed:\n" + gate.problems.join("\n"));
-  }
+  const graph = assertContentGates(ds); // throws, and so ends the build, when a content gate or an entry check fails
   for (const s of graph.skipped) console.log(`[content] no page for ${s.neighbourhood}: ${s.reason}`); // the build says why a page was not generated
   return graph.pages
     .filter((p) => p.url !== "/contact/")

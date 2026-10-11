@@ -59,7 +59,7 @@ export interface IngestEventsRequest {
  *  The limit is on the day of the UPLOAD, so the age is measured from the click to the upload (default: now), never to the conversion time written on the event. */
 export const CLICK_ID_DAYS = 90;
 export const USER_DATA_DAYS = 63;
-export const clickAgeDays = (lead: LeadRow, uploadAt = new Date()) => (uploadAt.getTime() - new Date(lead.occurred_at).getTime()) / DAY;
+export const clickAgeDays = (lead: LeadRow, uploadAt = new Date()) => (uploadAt.getTime() - new Date(lead.click_at ?? lead.occurred_at).getTime()) / DAY;
 
 export type OfflineStage = "estimate" | "sold";
 
@@ -71,7 +71,7 @@ export type OfflineStage = "estimate" | "sold";
 export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value: number; currency?: string; at?: Date; uploadAt?: Date; email?: string | null }): { event: IngestEvent | null; note: string } {
   const at = opts.at ?? new Date();
   const uploadAt = opts.uploadAt ?? new Date();
-  const click = new Date(lead.occurred_at).getTime();
+  const click = new Date(lead.click_at ?? lead.occurred_at).getTime();
   if (Number.isNaN(click)) return { event: null, note: "the stored click time is not a valid date, so the click age cannot be checked" };
   if (Number.isNaN(at.getTime()) || Number.isNaN(uploadAt.getTime())) return { event: null, note: "the conversion or upload time is not a valid date" };
   if (!Number.isFinite(opts.value) || opts.value < 0) return { event: null, note: "the value must be a number of zero or more" };
@@ -109,6 +109,14 @@ export function adsIngestRequest(dest: DataManagerDestination, events: IngestEve
     destinations: [{ operatingAccount: account(dest.operatingAccountId), loginAccount: account(dest.loginAccountId ?? dest.operatingAccountId), productDestinationId: dest.conversionActionId }],
     encoding: "HEX", consent: { adUserData: consent, adPersonalization: consent }, events, validateOnly: opts.validateOnly ?? true,
   };
+}
+
+/** Data Manager accepts at most 2,000 events per IngestEvents request, and a fast-fail API rejects the whole request for one bad event, so a long list goes up in chunks. */
+export const MAX_EVENTS_PER_REQUEST = 2000;
+export function adsIngestRequests(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; validateOnly?: boolean }): IngestEventsRequest[] {
+  const out: IngestEventsRequest[] = [];
+  for (let i = 0; i < events.length; i += MAX_EVENTS_PER_REQUEST) out.push(adsIngestRequest(dest, events.slice(i, i + MAX_EVENTS_PER_REQUEST), opts));
+  return out.length ? out : [adsIngestRequest(dest, [], opts)];
 }
 
 /** Leads still waiting on an outcome whose click is close to the limits: worth a warning while a conversion can still be imported. */

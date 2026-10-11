@@ -145,3 +145,20 @@ test("the marketing opt-in checkbox sits on the same row as its label text, at i
     await page.close();
   }
 });
+
+test("an ad click that lands on a project page still reaches the quote form two pages later: click ids, campaign, first landing page and the time of the click", async () => {
+  const page = await browser.newPage();
+  const landing = BASE + "/projects/ambleside-standing-seam-hillside/?gclid=ABC123&utm_source=google&utm_medium=cpc&utm_campaign=roof-repair";
+  const before = Date.now();
+  await page.goto(landing, { waitUntil: "load" });
+  await page.goto(BASE + "/services/", { waitUntil: "load" });
+  await page.goto(BASE + "/contact/", { waitUntil: "load" });
+  const v = (n) => page.locator(`#lead-form [name=${n}]`).inputValue();
+  assert.equal(await v("gclid"), "ABC123");
+  assert.equal(await v("utm_campaign"), "roof-repair");
+  assert.equal(await v("landing_page"), landing, "the page they first landed on, not the contact page");
+  const clicked = Date.parse(await v("click_time"));
+  assert.ok(clicked >= before - 1000 && clicked <= Date.now() + 1000, "the click time is when they arrived");
+  assert.match(await v("submission_id"), /^[0-9a-f-]{36}$/);
+  await page.close();
+});

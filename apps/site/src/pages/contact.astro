@@ -31,6 +31,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></div>
       <input type="hidden" name="landing_page" value="" />
       <input type="hidden" name="gclid" value="" />
+      <input type="hidden" name="click_time" value="" />
       <input type="hidden" name="wbraid" value="" />
       <input type="hidden" name="gbraid" value="" />
       <input type="hidden" name="utm_source" value="" />
@@ -49,7 +50,9 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       var f = document.getElementById("lead-form");
       var q = new URLSearchParams(location.search);
       ["gclid", "wbraid", "gbraid", "utm_source", "utm_medium", "utm_campaign"].forEach(function (k) { if (q.get(k)) { f.elements[k].value = q.get(k); try { sessionStorage.setItem("lab_" + k, q.get(k)); } catch (e) {} } else { try { f.elements[k].value = sessionStorage.getItem("lab_" + k) || ""; } catch (e) {} } });
-      f.elements["landing_page"].value = location.href;
+      try { f.elements["landing_page"].value = sessionStorage.getItem("lab_landing") || location.href; } catch (e) { f.elements["landing_page"].value = location.href; } // the page the visitor FIRST landed on, which the layout script recorded
+      // when the visitor first arrived from an ad (the first time a click id is seen in this tab), so the 90 and 63 day limits can count from the click and not from the later form
+      try { if ((q.get("gclid") || q.get("wbraid") || q.get("gbraid")) && !sessionStorage.getItem("lab_click_time")) sessionStorage.setItem("lab_click_time", new Date().toISOString()); f.elements["click_time"].value = sessionStorage.getItem("lab_click_time") || ""; } catch (e) {}
       function newId() { if (window.crypto && crypto.randomUUID) f.elements["submission_id"].value = crypto.randomUUID(); }
       newId();
       var m = document.cookie.match(/(?:^|; )_ga=GA\d\.\d\.(\d+\.\d+)/);

@@ -2,7 +2,7 @@
 // when CallRail API settings are present, reconciles missed webhooks at start-up and then nightly.
 //   node --experimental-sqlite src/server.ts
 // Required: CALLRAIL_SIGNING_KEY, OWNER_EMAIL. Optional: PORT (8787), LEDGER_PATH (./ledger.sqlite), ALLOW_ORIGIN, TRUST_PROXY=1 (only behind a proxy that overwrites the client address),
-// RETENTION_MONTHS (24), NOTIFY_WEBHOOK_URL (each new lead is POSTed there as JSON; with none, messages wait in the outbox), CALLRAIL_API_KEY and CALLRAIL_ACCOUNT_ID (reconcile),
+// RETENTION_MONTHS (24, whole months), TURNSTILE_SECRET (verifies the form's Turnstile token), NOTIFY_WEBHOOK_URL (each new lead is POSTed there as JSON; with none, messages wait in the outbox), CALLRAIL_API_KEY and CALLRAIL_ACCOUNT_ID (reconcile),
 // RECONCILE_LOOKBACK_DAYS (3: CallRail does not resend, so a server that was down longer than this loses those calls).
 // The reconcile request follows CallRail's published API reference; it has not been run against a live account, and it is not verified that a call's id in the webhook equals its id in the API.
 import type { Server } from "node:http";
@@ -22,13 +22,19 @@ export async function startServer(env: Record<string, string | undefined>, log: 
   const ownerEmail = env.OWNER_EMAIL ?? "";
   if (!signingKey || !ownerEmail) throw new Error("CALLRAIL_SIGNING_KEY and OWNER_EMAIL are required");
   const retention = Number(env.RETENTION_MONTHS ?? 24);
-  if (!Number.isFinite(retention) || retention < 1) throw new Error("RETENTION_MONTHS must be a number of months, 1 or more");
+  if (!Number.isInteger(retention) || retention < 1) throw new Error("RETENTION_MONTHS must be a whole number of months, 1 or more");
   const lookback = Number(env.RECONCILE_LOOKBACK_DAYS ?? 3);
   if (!Number.isFinite(lookback) || lookback < 1) throw new Error("RECONCILE_LOOKBACK_DAYS must be 1 or more");
   const ledger = new Ledger(env.LEDGER_PATH ?? "./ledger.sqlite");
   const server = createReceiver({
     ledger, signingKey, ownerEmail, allowOrigin: env.ALLOW_ORIGIN, trustProxyHeader: env.TRUST_PROXY === "1",
     rateLimit: { max: 10, windowSeconds: 60 }, replayWindowSeconds: 24 * 3600,
+    // with TURNSTILE_SECRET set, the quote form needs a token Cloudflare accepts (the site renders the widget when PUBLIC_TURNSTILE_SITEKEY is set)
+    turnstileVerify: env.TURNSTILE_SECRET ? async (token, ip) => {
+      if (!token) return false;
+      const res = await doFetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: new URLSearchParams({ secret: env.TURNSTILE_SECRET!, response: token, remoteip: ip }), signal: AbortSignal.timeout(10_000) });
+      return res.ok && ((await res.json()) as { success?: boolean }).success === true;
+    } : undefined,
   });
   await new Promise<void>((resolve) => server.listen(Number(env.PORT ?? 8787), resolve));
 
@@ -41,7 +47,7 @@ export async function startServer(env: Record<string, string | undefined>, log: 
     });
     if (r.sent || r.failed) log(`outbox: ${r.sent} sent, ${r.failed} failed`);
   };
-  const purge = () => { const r = ledger.purgeOlderThan(retention, deps.now?.()); if (r.leads) log(`retention: removed ${r.leads} leads older than ${retention} months`); };
+  const purge = () => { const r = ledger.purgeOlderThan(retention, deps.now?.()); if (r.leads) log(`retention: removed ${r.leads} leads older than ${retention} months`); if (!r.scrubbed) log("retention: the log could not be emptied yet because another connection is reading; it is retried at the next purge"); };
   const reconcile = async () => {
     if (!env.CALLRAIL_API_KEY || !env.CALLRAIL_ACCOUNT_ID) return;
     const since = new Date((deps.now?.() ?? new Date()).getTime() - lookback * 24 * 3600 * 1000).toISOString().slice(0, 10);

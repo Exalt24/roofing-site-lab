@@ -44,9 +44,14 @@ export function shapeErrors(x: unknown): string[] {
   }
   str(d.seo?.title, "seo.title"); str(d.seo?.description, "seo.description");
   if (!Array.isArray(d.photos)) errs.push("photos must be an array");
+  else for (const [i, p] of d.photos.entries()) { str(p?.photoId, `photos[${i}].photoId`); str(p?.alt, `photos[${i}].alt`); if (typeof p?.caption !== "string") errs.push(`photos[${i}].caption must be a string`); }
   if (!Array.isArray(d.relatedServiceSlugs)) errs.push("relatedServiceSlugs must be an array");
+  else if (d.relatedServiceSlugs.some((s) => typeof s !== "string")) errs.push("relatedServiceSlugs must hold strings");
   if (typeof d.relatedNeighbourhoodSlug !== "string") errs.push("relatedNeighbourhoodSlug must be a string");
   if (!Array.isArray(d.internalLinkSuggestions)) errs.push("internalLinkSuggestions must be an array");
+  else for (const [i, l] of d.internalLinkSuggestions.entries()) { if (typeof l?.anchor !== "string" || typeof l?.targetUrl !== "string" || typeof l?.why !== "string") errs.push(`internalLinkSuggestions[${i}] needs anchor, targetUrl and why as strings`); }
   if (!Array.isArray(d.missingInformation)) errs.push("missingInformation must be an array");
+  else if (d.missingInformation.some((s) => typeof s !== "string")) errs.push("missingInformation must hold strings");
+  if (Array.isArray(d.sections)) for (const [i, s] of d.sections.entries()) if (Array.isArray(s?.supportedBy) && s.supportedBy.some((x) => typeof x !== "string")) errs.push(`sections[${i}].supportedBy must hold strings`);
   return errs;
 }

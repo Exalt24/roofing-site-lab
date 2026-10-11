@@ -86,7 +86,8 @@ export function createReceiver(o: ReceiverOptions): Server {
         if (!/^(application\/x-www-form-urlencoded|multipart\/form-data)/i.test(ctype)) return json(res, 415, { error: "send the form as a normal form post" }, origin);
         const raw = await readBody(req, max);
         const request = new Request("http://x/api/lead", { method: "POST", headers: { "content-type": String(req.headers["content-type"] ?? "") }, body: raw });
-        const form = await request.formData();
+        let form: FormData;
+        try { form = await request.formData(); } catch { return json(res, 400, { error: "could not read the form" }, origin); }
         const f = (k: string) => String(form.get(k) ?? "").trim();
         const line = (k: string, n: number) => cleanLine(f(k), n);
         if (f("website")) return json(res, 200, { ok: true }, origin); // honeypot: bots get a success and nothing is stored
@@ -98,6 +99,10 @@ export function createReceiver(o: ReceiverOptions): Server {
         if (!message || message.length > 2000) return json(res, 400, { error: "please tell us what is going on with the roof (up to 2000 characters)" }, origin);
         if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "that email address does not look right" }, origin);
         const landing = line("landing_page", 500);
+        // when the visitor first arrived from an ad, as the page recorded it; only a believable time (not in the future, within the 90 days a click id lives) is kept
+        const clickMs = Date.parse(line("click_time", 40));
+        const nowMs = now().getTime();
+        const clickAt = Number.isFinite(clickMs) && clickMs <= nowMs + 60_000 && nowMs - clickMs <= 90 * 86_400_000 ? new Date(clickMs).toISOString() : undefined;
         const ids = clickIds(landing);
         const ev: LeadEvent = {
           kind: "form", sourceEventId: `site-${UUID.test(f("submission_id")) ? f("submission_id").toLowerCase() : o.ledger.newSubmissionId()}`, occurredAt: now().toISOString(), phoneE164: phone, email: email || null, name,
@@ -105,7 +110,7 @@ export function createReceiver(o: ReceiverOptions): Server {
           utm: { source: line("utm_source", 100) || ids.utm_source, medium: line("utm_medium", 100) || ids.utm_medium, campaign: line("utm_campaign", 200) || ids.utm_campaign },
           gclid: line("gclid", 200) || ids.gclid, wbraid: line("wbraid", 200) || ids.wbraid, gbraid: line("gbraid", 200) || ids.gbraid, gaClientId: line("ga_client_id", 60) || undefined,
           firstTime: null, trackingNumber: null, raw: { form: "quote", landing_page: landing, service: line("service", 80) || null, area: line("area", 80) || null },
-          consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes",
+          consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", clickAt,
         };
         const r = o.ledger.insert(ev, now());
         if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}\n\nPage: ${landing}` }, now());

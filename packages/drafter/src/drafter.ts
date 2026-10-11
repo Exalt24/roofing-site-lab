@@ -55,8 +55,16 @@ export async function draftProject(i: Intake, ctx: Context, opts: { llm: LlmFn; 
       errs = last.errors;
       continue;
     }
-    out = withMissingInformation(out, i);
-    last = validateDraft(out, i, ctx);
+    try {
+      out = withMissingInformation(out, i);
+      last = validateDraft(out, i, ctx);
+    } catch (e) {
+      // a model that returns something the validators cannot even read is a failed attempt to retry, never a crash
+      last = { ok: false, errors: [`the draft could not be validated: ${(e as Error).message}`], warnings: [] };
+      history.push({ attempt, ...last });
+      errs = last.errors;
+      continue;
+    }
     history.push({ attempt, ok: last.ok, errors: last.errors, warnings: last.warnings });
     if (last.ok) { draft = out as Draft; break; }
     errs = last.errors;
