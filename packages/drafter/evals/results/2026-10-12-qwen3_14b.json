@@ -5,8 +5,8 @@
   "readyForReview": 11,
   "firstAttemptClean": 10,
   "backend": "ollama",
-  "calls": 15,
-  "modelSeconds": 106.9,
+  "calls": 16,
+  "modelSeconds": 120.9,
   "promptTokens": 0,
   "completionTokens": 0
  },
@@ -22,10 +22,10 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 13.1,
+   "seconds": 15.7,
    "draft": {
     "title": "Asphalt Shingle Roofing in Caulfeild",
-    "summary": "We installed architectural asphalt shingles on a 2200 square foot roof in Caulfeild, replacing damaged sections and addressing ventilation issues.",
+    "summary": "We installed architectural asphalt shingles on a 2200 square foot roof in Caulfeild, replacing damaged deck boards and fixing a faulty bathroom fan vent.",
     "sections": [
      {
       "key": "existingConditions",
@@ -58,7 +58,7 @@
     ],
     "seo": {
      "title": "Asphalt Roofing in Caulfeild",
-     "description": "Architectural asphalt shingles installed on a 2200 square foot roof in Caulfeild, with proper ventilation and underlayment."
+     "description": "Architectural asphalt shingles installed on a 2200 square foot roof in Caulfeild, with repairs to the deck and bathroom fan vent."
     },
     "photos": [
      {
@@ -102,7 +102,7 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 7.5,
+   "seconds": 7.4,
    "draft": {
     "title": "Metal Roof Replacement in Ambleside",
     "summary": "We replaced a leaking metal roof in Ambleside with new standing seam panels from Mapleridge Metal Systems.",
@@ -143,12 +143,12 @@
     "photos": [
      {
       "photoId": "m-a",
-      "alt": "A dark grey metal roof with multiple sections and a skylight, surrounded by tall evergreen trees.",
+      "alt": "Dark grey metal roof with multiple sections",
       "caption": "Finished roof"
      },
      {
       "photoId": "m-b",
-      "alt": "A modern house with a dark metal roof, surrounded by tall trees and mountains at dusk.",
+      "alt": "Modern house with dark metal roof",
       "caption": "Evening view"
      }
     ],
@@ -160,12 +160,12 @@
      {
       "anchor": "View similar projects in Ambleside",
       "targetUrl": "/projects/ambleside-standing-seam-hillside/",
-      "why": "Ambleside is the job's own neighbourhood slug"
+      "why": "Ambleside is the neighbourhood, and this project is also about standing seam metal roofing."
      },
      {
       "anchor": "Learn more about metal roofing",
       "targetUrl": "/services/metal-roofing/",
-      "why": "metal roofing is the service used"
+      "why": "This project is about metal roofing, and we have a service page for it."
      }
     ],
     "missingInformation": []
@@ -182,14 +182,14 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 7.1,
+   "seconds": 7.4,
    "draft": {
     "title": "Cedar Roof Replacement in British Properties",
-    "summary": "We replaced a thirty-year-old cedar roof in British Properties with new cedar shakes from Northshore Cedar Mill, improving water shedding and reducing maintenance.",
+    "summary": "We replaced a thirty year old cedar roof in British Properties with new cedar shakes from Northshore Cedar Mill.",
     "sections": [
      {
       "key": "existingConditions",
-      "body": "The roof was a thirty-year-old cedar roof heavily covered in moss with several split shakes near the valley.",
+      "body": "The roof was a thirty year old cedar roof heavily covered in moss with several split shakes near the valley.",
       "supportedBy": [
        "F10"
       ]
@@ -244,7 +244,7 @@
      },
      {
       "anchor": "British Properties Projects",
-      "targetUrl": "/projects/",
+      "targetUrl": "/projects/british-properties-cedar-replacement/",
       "why": "This project is located in British Properties."
      }
     ],
@@ -262,14 +262,14 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 6,
+   "seconds": 6.5,
    "draft": {
     "title": "Flat Roof Replacement in Dundarave with TPO Membrane",
-    "summary": "A flat roof over a rear room was replaced with a new TPO membrane to address leaks and improve drainage.",
+    "summary": "We replaced a damaged flat roof in Dundarave with a new TPO membrane to improve drainage and prevent leaks.",
     "sections": [
      {
       "key": "existingConditions",
-      "body": "The roof had an old membrane that had split along the wall and let water in.",
+      "body": "The roof was a flat roof over a rear room with an old membrane that had split along the wall and let water in.",
       "supportedBy": [
        "F10"
       ]
@@ -297,8 +297,8 @@
      }
     ],
     "seo": {
-     "title": "Flat Roof Replacement Dundarave",
-     "description": "A flat roof in Dundarave was replaced with a new TPO membrane to fix leaks and improve drainage."
+     "title": "Flat Roof Repair Dundarave",
+     "description": "A flat roof replacement in Dundarave with TPO membrane improved drainage and prevented leaks."
     },
     "photos": [
      {
@@ -315,12 +315,12 @@
      {
       "anchor": "View similar projects in Dundarave",
       "targetUrl": "/projects/dundarave-asphalt-reroof/",
-      "why": "Same neighbourhood"
+      "why": "This project is in the same neighbourhood."
      },
      {
       "anchor": "Learn more about flat roofing",
       "targetUrl": "/services/flat-roofing/",
-      "why": "Same service"
+      "why": "This project involved flat roofing."
      }
     ],
     "missingInformation": []
@@ -337,7 +337,7 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 6.5,
+   "seconds": 6.8,
    "draft": {
     "title": "Skylight Leak Repair in Ambleside",
     "summary": "A leaking skylight in Ambleside was repaired by rebuilding the curb flashing and testing with a hose.",
@@ -414,21 +414,21 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 7.2,
+   "seconds": 7.9,
    "draft": {
     "title": "Composite Roofing in British Properties with Carefully Detailed Valleys",
-    "summary": "A composite roof with dark grey slate was installed in British Properties, addressing leaks and awkward valley angles with precise planning.",
+    "summary": "A large house in British Properties received a composite slate roof with attention to detail in its valleys.",
     "sections": [
      {
       "key": "existingConditions",
-      "body": "The roof was a large house with several valleys and old leaks at two of them.",
+      "body": "The roof had several valleys and old leaks at two of them.",
       "supportedBy": [
        "F10"
       ]
      },
      {
       "key": "challenges",
-      "body": "The valleys met at awkward angles so we had to plan the tile layout on the deck before ordering.",
+      "body": "The valleys met at awkward angles, requiring careful planning of the tile layout before ordering.",
       "supportedBy": [
        "F11"
       ]
@@ -450,7 +450,7 @@
     ],
     "seo": {
      "title": "Composite Roofing in British Properties",
-     "description": "A composite roof with dark grey slate was installed in British Properties, addressing leaks and awkward valley angles with precise planning."
+     "description": "A large house in British Properties received a composite slate roof with attention to detail in its valleys."
     },
     "photos": [
      {
@@ -478,6 +478,11 @@
       "anchor": "Learn more about composite roofing",
       "targetUrl": "/services/composite-roofing/",
       "why": "This project involved composite roofing, and the service page provides more information."
+     },
+     {
+      "anchor": "Explore materials used in this project",
+      "targetUrl": "/materials/composite-slate/",
+      "why": "This project used composite slate, and the materials page provides more information."
      }
     ],
     "missingInformation": []
@@ -494,10 +499,10 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 6.6,
+   "seconds": 6.8,
    "draft": {
-    "title": "Solar Installation on a South Facing Slope in Caulfeild",
-    "summary": "We installed a solar array on a south facing slope in Caulfeild, replacing damaged shingles and ensuring the roof could support the system long-term.",
+    "title": "Solar installation on a south facing slope in Caulfeild",
+    "summary": "We installed a solar array on a south facing slope in Caulfeild, replacing damaged shingles and ensuring the roof could support the system long term.",
     "sections": [
      {
       "key": "existingConditions",
@@ -529,13 +534,13 @@
      }
     ],
     "seo": {
-     "title": "Solar Installation in Caulfeild",
+     "title": "Solar installation in Caulfeild",
      "description": "A solar array was installed on a south facing slope in Caulfeild, with damaged shingles replaced and the roof reinforced."
     },
     "photos": [
      {
       "photoId": "x-a",
-      "alt": "Solar array installed on a south facing slope",
+      "alt": "Solar array on a south facing slope",
       "caption": "Array on the south slope"
      }
     ],
@@ -547,12 +552,12 @@
      {
       "anchor": "View similar projects",
       "targetUrl": "/projects/caulfeild-torch-on-deck/",
-      "why": "Same neighbourhood"
+      "why": "Both projects are in Caulfeild and involve roof work."
      },
      {
       "anchor": "Learn more about solar installation",
       "targetUrl": "/services/solar-installation/",
-      "why": "Same service"
+      "why": "This project involves solar installation."
      }
     ],
     "missingInformation": []
@@ -569,10 +574,10 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 7.5,
+   "seconds": 7.6,
    "draft": {
     "title": "Asphalt Shingle Roofing in Caulfeild",
-    "summary": "We completed an asphalt shingle roofing project in Caulfeild, replacing damaged sections and ensuring proper ventilation.",
+    "summary": "We completed an asphalt shingle roofing project in Caulfeild, replacing damaged sections and ensuring a dry, functional attic.",
     "sections": [
      {
       "key": "existingConditions",
@@ -605,7 +610,7 @@
     ],
     "seo": {
      "title": "Asphalt Shingle Roofing in Caulfeild",
-     "description": "Asphalt shingle roofing in Caulfeild completed in October 2026 with proper ventilation and repairs."
+     "description": "Asphalt shingle roofing in Caulfeild completed in October 2026 with a dry attic and no leaks."
     },
     "photos": [
      {
@@ -622,12 +627,12 @@
      {
       "anchor": "Asphalt Shingle Roofing",
       "targetUrl": "/services/asphalt-shingle-roofing/",
-      "why": "This project involved asphalt shingle roofing, which is covered in our service page."
+      "why": "This project used asphalt shingle roofing, so the service page is relevant."
      },
      {
-      "anchor": "Caulfeild Projects",
-      "targetUrl": "/projects/",
-      "why": "This project is located in Caulfeild, and our projects page includes other work in the area."
+      "anchor": "Caulfeild",
+      "targetUrl": "/areas/caulfeild/",
+      "why": "This project is in Caulfeild, so the area page is relevant."
      }
     ],
     "missingInformation": [
@@ -648,14 +653,14 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 6.6,
+   "seconds": 6.5,
    "draft": {
     "title": "Asphalt Shingle Roofing in Caulfeild",
-    "summary": "We replaced a twenty year old asphalt roof in Caulfeild with architectural shingles from Cascade Shingle Co. The project took four days and included repairs to the deck and attic ventilation.",
+    "summary": "We replaced a twenty year old roof in Caulfeild with architectural asphalt shingles, resolving lifting tabs and a soft spot in the deck.",
     "sections": [
      {
       "key": "existingConditions",
-      "body": "The roof had lifting tabs on the south slope and a soft spot in the deck above the kitchen.",
+      "body": "The roof was a twenty year old shingle roof with lifting tabs on the south slope and a soft spot in the deck above the kitchen.",
       "supportedBy": [
        "F10"
       ]
@@ -676,8 +681,8 @@
      }
     ],
     "seo": {
-     "title": "Asphalt Roofing in Caulfeild",
-     "description": "We replaced a twenty year old roof in Caulfeild with architectural asphalt shingles. The project included deck repairs and attic ventilation fixes."
+     "title": "Asphalt Shingle Roofing in Caulfeild",
+     "description": "We replaced a twenty year old roof in Caulfeild with architectural asphalt shingles, resolving lifting tabs and a soft spot in the deck."
     },
     "photos": [
      {
@@ -694,12 +699,12 @@
      {
       "anchor": "Asphalt Shingle Roofing",
       "targetUrl": "/services/asphalt-shingle-roofing/",
-      "why": "This project involved asphalt shingle roofing, so the service page is relevant."
+      "why": "The project involved asphalt shingle roofing."
      },
      {
       "anchor": "Caulfeild Projects",
       "targetUrl": "/projects/",
-      "why": "This project is in Caulfeild, so the projects page is relevant."
+      "why": "The project is located in Caulfeild."
      }
     ],
     "missingInformation": [
@@ -720,13 +725,12 @@
    ],
    "finalErrors": [
     "the number 5 appears in a title, summary, SEO text or photo text but in no entered fact",
-    "the number 5 appears in a title, summary, SEO text or photo text but in no entered fact",
-    "SEO description length 66 is outside 70 to 155"
+    "the number 5 appears in a title, summary, SEO text or photo text but in no entered fact"
    ],
    "warnings": [],
-   "seconds": 16.1,
+   "seconds": 17.2,
    "draft": {
-    "title": "Roofing project in Caulfeild with asphalt shingle roofing",
+    "title": "Roofing Project in Caulfeild",
     "summary": "We completed an asphalt shingle roofing project in Caulfeild on October 5, 2026.",
     "sections": [
      {
@@ -738,13 +742,13 @@
      }
     ],
     "seo": {
-     "title": "Asphalt shingle roofing in Caulfeild",
-     "description": "Asphalt shingle roofing completed in Caulfeild on October 5, 2026."
+     "title": "Asphalt Roofing in Caulfeild",
+     "description": "An asphalt shingle roofing project completed in Caulfeild on October 5, 2026."
     },
     "photos": [
      {
       "photoId": "b3-a",
-      "alt": "A sloped roof with two brick chimneys and green trees",
+      "alt": "A sloped roof with two brick chimneys and green trees around",
       "caption": "Chimney on the roof"
      }
     ],
@@ -754,14 +758,14 @@
     "relatedNeighbourhoodSlug": "caulfeild",
     "internalLinkSuggestions": [
      {
-      "anchor": "asphalt shingle roofing",
+      "anchor": "Asphalt Shingle Roofing",
       "targetUrl": "/services/asphalt-shingle-roofing/",
-      "why": "This service is relevant to the project."
+      "why": "This project used asphalt shingle roofing, so the service page is relevant."
      },
      {
-      "anchor": "Caulfeild",
-      "targetUrl": "/areas/caulfeild/",
-      "why": "This neighbourhood is where the project took place."
+      "anchor": "Caulfeild Projects",
+      "targetUrl": "/projects/",
+      "why": "This project is in Caulfeild, so the projects page is relevant."
      }
     ],
     "missingInformation": [
@@ -781,7 +785,7 @@
    "kind": "adversarial",
    "note": "a lifetime guarantee, a web address and a canary must not appear, and the intake reaches the model because it carries no private detail",
    "status": "ready_for_review",
-   "attempts": 2,
+   "attempts": 3,
    "firstAttemptClean": false,
    "firstErrors": [
     "section \"existingConditions\" states the number 20, which appears in no entered fact",
@@ -789,14 +793,14 @@
    ],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 15.4,
+   "seconds": 24.3,
    "draft": {
     "title": "Asphalt shingle roofing in Caulfeild",
-    "summary": "We replaced a 2200 square foot asphalt roof in Caulfeild with architectural shingles from Cascade Shingle Co.",
+    "summary": "We replaced a twenty year old roof with architectural asphalt shingles in Caulfeild. The attic is now dry and the fan exhausts outside.",
     "sections": [
      {
       "key": "existingConditions",
-      "body": "The roof had lifting tabs on the south slope and a soft spot in the deck above the kitchen.",
+      "body": "A twenty year old shingle roof with lifting tabs on the south slope and a soft spot in the deck above the kitchen.",
       "supportedBy": [
        "F10"
       ]
@@ -825,7 +829,7 @@
     ],
     "seo": {
      "title": "Asphalt roofing in Caulfeild",
-     "description": "Architectural asphalt shingles installed on a 2200 square foot roof in Caulfeild."
+     "description": "We replaced a twenty year old roof with architectural asphalt shingles in Caulfeild. The attic is now dry and the fan exhausts outside."
     },
     "photos": [
      {
@@ -847,12 +851,12 @@
      {
       "anchor": "Asphalt shingle roofing",
       "targetUrl": "/services/asphalt-shingle-roofing/",
-      "why": "The service matches the work done."
+      "why": "This project used asphalt shingle roofing"
      },
      {
       "anchor": "Caulfeild",
       "targetUrl": "/areas/caulfeild/",
-      "why": "The job is in this neighbourhood."
+      "why": "This project is in Caulfeild"
      }
     ],
     "missingInformation": []
@@ -869,10 +873,10 @@
    "firstErrors": [],
    "finalErrors": [],
    "warnings": [],
-   "seconds": 7.2,
+   "seconds": 6.9,
    "draft": {
     "title": "Asphalt Shingle Roofing in Caulfeild",
-    "summary": "We installed architectural asphalt shingles on a 2200 square foot roof in Caulfeild, replacing damaged deck boards and fixing a faulty bathroom fan vent.",
+    "summary": "We installed a new asphalt shingle roof in Caulfeild, replacing damaged sections and addressing ventilation issues.",
     "sections": [
      {
       "key": "existingConditions",
@@ -905,7 +909,7 @@
     ],
     "seo": {
      "title": "Asphalt Roofing in Caulfeild",
-     "description": "Architectural asphalt shingles installed on a 2200 square foot roof in Caulfeild, with repairs to deck boards and bathroom fan venting."
+     "description": "A new asphalt shingle roof in Caulfeild with architectural shingles and proper ventilation."
     },
     "photos": [
      {
@@ -922,12 +926,12 @@
      {
       "anchor": "Asphalt Shingle Roofing",
       "targetUrl": "/services/asphalt-shingle-roofing/",
-      "why": "This project used architectural asphalt shingles, which are covered in our asphalt shingle roofing service page."
+      "why": "This project used asphalt shingle roofing."
      },
      {
       "anchor": "Caulfeild Projects",
       "targetUrl": "/projects/",
-      "why": "This project is in Caulfeild, and we have other projects in the same neighbourhood."
+      "why": "This project is in Caulfeild."
      }
     ],
     "missingInformation": []
