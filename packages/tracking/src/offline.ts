@@ -27,7 +27,7 @@ export function ga4Payload(lead: LeadRow, stage: Ga4Stage, opts: { value?: numbe
   if (opts.sessionId !== undefined && ageHours <= 24) params.session_id = opts.sessionId;
   const p: Ga4Payload = { client_id: lead.ga_client_id, events: [{ name: stage, params }] };
   let note = "ok";
-  if (ageHours <= 72 && ageHours >= -1) p.timestamp_micros = at.getTime() * 1000;
+  if (ageHours <= 72 && ageHours >= 0) p.timestamp_micros = at.getTime() * 1000; // Google wants a time between 72 hours ago and now
   else note = `the event is ${Math.round(ageHours)} hours from now and GA4 only accepts up to 72 hours back, so it is sent without a timestamp`;
   return { payload: p, note };
 }

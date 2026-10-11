@@ -94,3 +94,9 @@ test("a re-run never overwrites the draft a person has edited: the project is cr
   assert.deepEqual(calls.sort(), ["ifnot:project", "replace:aiRun"]);
   assert.throws(() => buildDocs(run, { ...goodIntake, jobId: "../../published" }, {}), /job id/);
 });
+
+test("MUTANT: the draft-only guard refuses a document that is not in the drafts namespace", async () => {
+  const { assertAllDrafts } = await import("./index.ts");
+  assert.throws(() => assertAllDrafts([{ _id: "drafts.ok" }, { _id: "project-p01" }]), /may only create draft documents/);
+  assert.doesNotThrow(() => assertAllDrafts([{ _id: "drafts.ok" }]));
+});

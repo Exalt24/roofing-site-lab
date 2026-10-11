@@ -7,8 +7,15 @@ import type { Context, Draft, Fact, Intake, Report, SectionKey } from "./types.t
 const SECTION_FACT_LABEL: Record<SectionKey, string> = { existingConditions: "what the roof was like before", challenges: "what was hard", solution: "what was installed", outcome: "the result" };
 const SECTION_INTAKE: Record<SectionKey, keyof Intake> = { existingConditions: "existingConditions", challenges: "whatWasHard", solution: "whatWeDid", outcome: "outcome" };
 
-export const BANNED = /\b(guarantee[ds]?|guaranty|warrant(?:y|ies)|lifetime|best in|number one|cheapest|lowest price|fully insured|licensed|certified|award[- ]winning|years of experience|storm[- ]proof|leak[- ]proof|never leak)\b|#1/i;
-export const MATERIAL_LEXICON = ["standing seam", "standing-seam", "cedar", "shake", "shingle", "asphalt", "slate", "composite", "synthetic", "tpo", "epdm", "pvc", "torch-on", "bitumen", "membrane", "steel", "aluminium", "aluminum", "copper", "zinc", "clay", "tile", "metal", "solar panel", "fibreglass", "fiberglass"];
+export const BANNED = /\b(guarantee[ds]?|guaranty|warrant(?:y|ies)|lifetime|best in|number one|cheapest|lowest price|fully insured|licensed|certified|award[- ]winning|years of experience|storm[- ]proof|leak[- ]proof|never leak|for life|forever|lasts a lifetime)\b|#1/i;
+
+/** Spelled-out numbers (digits are checked separately). "one" is left out because it is ordinary English ("no one", "one of the"). */
+const NUMBER_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, dozen: 12 };
+/** A North American phone number written any common way: 604-555-0142, (604) 555 0142, 604.555.0142, 6045550142, +1 604 555 0142. */
+const PHONE_PATTERN = /(?<![\d])(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)/;
+const STOP_CAPS = new Set(["this", "that", "these", "those", "the", "new", "old", "all", "each", "both", "same", "some", "every", "other", "another", "standing", "composite", "synthetic", "architectural", "dark", "light", "grey", "gray", "black", "white", "charcoal"]);
+const BRAND_BEFORE_MATERIAL = /\b([A-Z][a-z]{3,})\s+(?:[Ss]hingles?|[Ss]hakes?|[Pp]anels?|[Mm]embranes?|[Tt]iles?|[Mm]etal|[Ss]late|[Dd]ecking)\b/g;
+export const MATERIAL_LEXICON = ["standing seam", "standing-seam", "cedar", "shake", "shingle", "asphalt", "slate", "composite", "synthetic", "tpo", "epdm", "pvc", "torch-on", "bitumen", "membrane", "steel", "aluminium", "aluminum", "copper", "zinc", "clay", "tile", "metal", "solar panel", "fibreglass", "fiberglass", "rubber", "polymer", "vinyl", "gravel"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function hasWord(hay: string, needle: string): boolean {
@@ -57,7 +64,9 @@ export function privateBits(intake: Intake): string[] {
 export function inputPrivacyProblems(intake: Intake): string[] {
   const boxes: [string, string | null | undefined][] = [
     ["existing conditions", intake.existingConditions], ["what was hard", intake.whatWasHard], ["what we did", intake.whatWeDid], ["outcome", intake.outcome], ["staff notes", intake.staffNotes],
+    ["manufacturer", intake.manufacturer], ["colour", intake.colour], ["roof type", intake.roofType],
     ...intake.photos.map((p, i): [string, string | null | undefined] => [`caption of photo ${i + 1}`, p.staffCaption]),
+    ...intake.photos.map((p, i): [string, string | null | undefined] => [`description of photo ${i + 1}`, p.visibleDescription]),
   ];
   const out: string[] = [];
   const bits = privateBits(intake);
@@ -65,7 +74,7 @@ export function inputPrivacyProblems(intake: Intake): string[] {
     if (!value) continue;
     const t = value.toLowerCase();
     for (const b of bits) if (hasWord(t, b.toLowerCase())) out.push(`"${b}" (a customer detail) is typed in the ${label} box`);
-    if (/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/.test(value)) out.push(`a phone number is typed in the ${label} box`);
+    if (PHONE_PATTERN.test(value)) out.push(`a phone number is typed in the ${label} box`);
     if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(value)) out.push(`an email address is typed in the ${label} box`);
     if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(value)) out.push(`a street address is typed in the ${label} box`);
   }
@@ -83,6 +92,9 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   const entered = facts.filter((f) => f.kind === "entered");
   const enteredText = lc(entered.map((f) => f.value).join("\n") + "\n" + ctx.services.map((s) => s.name).join(" ") + " " + ctx.materials.filter((m) => intake.materialSlugs.includes(m.slug)).map((m) => m.name).join(" "));
   const text = draftText(d);
+  // numbers the staff entered, WITHOUT the digits of the finish date (the "10" in 2026-10-05 must not make "10 days" look supported); the year itself is allowed
+  const enteredNumbers = new Set<string>([...entered.filter((f) => f.label !== "completed on").flatMap((f) => numbersOf(f.value)), ...(intake.completedOn.match(/^\d{4}/) ?? [])]);
+  const vocabOf = (s: string) => new Set(lc(s).split(/[^a-z0-9']+/).filter(Boolean));
 
   // 1. sections: only for slots the employee filled, each citing the matching entered field
   for (const key of Object.keys(SECTION_FACT_LABEL) as SectionKey[]) {
@@ -99,7 +111,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
     if (filled && !cited.some((f) => lc(f.label).includes(SECTION_FACT_LABEL[key]))) errors.push(`section "${key}" does not cite the employee's own "${SECTION_FACT_LABEL[key]}" entry`);
     // 2. numbers: each must come from an entered fact; cited facts preferred
     const citedNums = new Set(cited.filter((f) => f.kind === "entered").flatMap((f) => numbersOf(f.value)));
-    const allNums = new Set(entered.flatMap((f) => numbersOf(f.value)));
+    const allNums = enteredNumbers;
     for (const n of numbersOf(sec.body)) {
       if (!allNums.has(n)) errors.push(`section "${key}" states the number ${n}, which appears in no entered fact`);
       else if (!citedNums.has(n)) warnings.push(`section "${key}" states ${n} but cites a different fact than the one that holds it`);
@@ -108,9 +120,29 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
 
   // numbers anywhere else in public text
   for (const n of numbersOf([d.title, d.summary, d.seo.title, d.seo.description, ...d.photos.flatMap((p) => [p.alt, p.caption])].join(" "))) {
-    const allNums = new Set(entered.flatMap((f) => numbersOf(f.value)));
-    if (!allNums.has(n)) errors.push(`the number ${n} appears in a title, summary, SEO text or photo text but in no entered fact`);
+    if (!enteredNumbers.has(n)) errors.push(`the number ${n} appears in a title, summary, SEO text or photo text but in no entered fact`);
   }
+
+  // spelled-out numbers ("a crew of thirty", "saved forty percent") are numbers too: each must appear as that word or as its digits in an entered fact
+  const enteredWords = new Set(lc(entered.map((f) => f.value).join(" ")).split(/[^a-z]+/).filter(Boolean));
+  const spelled = new Set<string>();
+  // what a vision model saw in a photo ("two brick chimneys") may be repeated in that photo's alt text and caption, and only there
+  const visualWords = new Set(lc(facts.filter((f) => f.kind === "visual").map((f) => f.value).join(" ")).split(/[^a-z]+/).filter(Boolean));
+  const photoText = d.photos.flatMap((p) => [p.alt, p.caption]).join("\n");
+  const nonPhotoText = text.split(photoText).join(" ");
+  const flag = (t: string, known: Set<string>) => { for (const w of lc(t).split(/[^a-z]+/)) if (w in NUMBER_WORDS && !known.has(w) && !enteredNumbers.has(String(NUMBER_WORDS[w]))) spelled.add(w); };
+  flag(nonPhotoText, enteredWords);
+  flag(photoText, new Set([...enteredWords, ...visualWords]));
+  for (const w of spelled) errors.push(`the number word "${w}" appears in the draft but in no entered fact`);
+
+  // a brand-like capitalised word in front of a material noun ("Malarkey shingles"), anywhere, including the first word of a sentence and the headings
+  for (const m of text.matchAll(BRAND_BEFORE_MATERIAL)) {
+    const w = lc(m[1]);
+    if (!enteredWords.has(w) && !vocabOf(enteredText).has(w) && !STOP_CAPS.has(w)) errors.push(`the brand-like name "${m[1]}" in "${m[0]}" appears in the draft but nowhere in the entered facts`);
+  }
+
+  const keys = d.sections.map((s) => s.key);
+  for (const k of new Set(keys.filter((x, i) => keys.indexOf(x) !== i))) errors.push(`section "${k}" appears more than once`);
 
   // 3. invented names and brands. Sentences are checked for proper nouns; Title Case headings (title, SEO title, link anchors) are not,
   // because Title Case makes every word look like a name. Headings get a brand-shape check and a vocabulary warning instead.
@@ -142,7 +174,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
 
   // 6. private data
   for (const b of privateBits(intake)) if (hasWord(lc(text), lc(b))) errors.push(`private customer detail "${b}" appears in public text`);
-  if (/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/.test(text)) errors.push("a phone number appears in public text");
+  if (PHONE_PATTERN.test(text)) errors.push("a phone number appears in public text");
   if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(text)) errors.push("an email address appears in public text");
   if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(text)) errors.push("a street address appears in public text");
 

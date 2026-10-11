@@ -30,8 +30,10 @@ export function clickIds(url: string | null | undefined): ClickIds {
 
 export function toE164(raw: string | null | undefined, defaultCountry = "1"): string | null {
   if (!raw) return null;
-  const d = raw.replace(/[^\d+]/g, "");
-  if (d.startsWith("+")) return /^\+\d{8,15}$/.test(d) ? d : null;
+  // an extension ("ext. 12", "x12", "#12") is not part of the number: cut it off before reading digits, or "...0142 ext. 1234" becomes a bogus 15 digit number
+  const main = raw.split(/\s*(?:ext\.?|extension|x|#)\s*\d+\s*$/i)[0];
+  const d = main.replace(/[^\d+]/g, "");
+  if (d.startsWith("+")) return /^\+[1-9]\d{7,14}$/.test(d) ? d : null; // a country code never starts with 0
   const digits = d.replace(/\D/g, "");
   if (digits.length === 10) return `+${defaultCountry}${digits}`;
   if (digits.length === 11 && digits.startsWith(defaultCountry)) return `+${digits}`;

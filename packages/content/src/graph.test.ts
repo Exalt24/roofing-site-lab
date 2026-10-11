@@ -113,3 +113,29 @@ test("MUTANT: the same check does fail on a recent job that claims a full winter
   const months = (new Date("2026-10-12").getTime() - new Date(p.completedOn).getTime()) / (30.44 * 24 * 3600 * 1000);
   assert.ok(/full winter/.test(p.outcome.toLowerCase()) && months < 6);
 });
+
+test("MUTANT: a pair of pages that only link to each other is unreachable from home even though neither is an orphan", () => {
+  const g = clone(buildGraph(sampleDataset));
+  const mk = (url: string, other: string) => ({ ...g.pages[1], url, canonical: url, links: [{ url: other, text: "x" }], breadcrumbs: [] });
+  g.pages.push(mk("/island-a/", "/island-b/"), mk("/island-b/", "/island-a/"));
+  const r = checkGraph(g);
+  assert.ok(r.problems.some((p) => /unreachable from home: \/island-a\//.test(p)), r.problems.join(" | "));
+  assert.equal(r.problems.some((p) => /orphan page \/island-a\//.test(p)), false, "so only the reachability check can catch it");
+});
+
+test("MUTANT: a page whose canonical points elsewhere, and a duplicate url, are both caught", () => {
+  const g = clone(buildGraph(sampleDataset));
+  g.pages[2].canonical = "/somewhere-else/";
+  assert.ok(checkGraph(g).problems.some((p) => /canonical must be self-referencing/.test(p)));
+  const h = clone(buildGraph(sampleDataset));
+  h.pages.push({ ...h.pages[2] });
+  assert.ok(checkGraph(h).problems.some((p) => /duplicate url/.test(p)));
+});
+
+test("MUTANT: a neighbourhood with enough projects but under 25 words of local facts gets no page, and the build says why", () => {
+  const ds = clone(sampleDataset);
+  ds.neighbourhoods.find((n) => n.slug === "ambleside")!.facts = "Hillside homes near the water.";
+  const g = buildGraph(ds);
+  assert.equal(g.pages.some((p) => p.url === "/areas/ambleside/"), false);
+  assert.ok(g.skipped.some((s) => s.neighbourhood === "ambleside" && /words, needs 25/.test(s.reason)));
+});

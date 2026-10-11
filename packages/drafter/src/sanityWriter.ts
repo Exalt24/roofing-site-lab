@@ -9,6 +9,8 @@ export function assertDraftId(id: string) {
   if (!id.startsWith("drafts.")) throw new Error(`refusing to write ${id}: the AI step may only create draft documents`);
 }
 
+export function assertAllDrafts(docs: Record<string, unknown>[]) { for (const doc of docs) assertDraftId(String(doc._id)); }
+
 /** The job id becomes part of a document id, and Sanity ids allow letters, digits, dot, dash and underscore only. */
 export function assertJobId(jobId: string) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(jobId)) throw new Error(`job id "${jobId}" must be 1 to 64 letters, digits, dashes or underscores`);
@@ -37,7 +39,7 @@ export function buildDocs(run: RunResult, intake: Intake, assetRefs: Record<stri
       aiRun: { ...ref(runId), _weak: true },
     });
   }
-  for (const doc of docs) assertDraftId(String(doc._id));
+  assertAllDrafts(docs);
   return docs;
 }
 

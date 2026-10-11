@@ -33,6 +33,8 @@ export class Ledger {
     this.db = new DatabaseSync(path);
     this.db.exec(`
       PRAGMA journal_mode = WAL;
+      PRAGMA secure_delete = ON;
+      PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS leads (
         id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL CHECK (kind IN ('call','form')), source_event_id TEXT NOT NULL,
         occurred_at TEXT NOT NULL, received_at TEXT NOT NULL, phone_e164 TEXT, email_sha256 TEXT, landing_page_url TEXT,
@@ -89,7 +91,8 @@ export class Ledger {
     const r = this.db.prepare("INSERT INTO outbox (lead_id, channel, payload, next_attempt_at) VALUES (?,?,?,?)").run(leadId, channel, JSON.stringify(payload), now.toISOString());
     return Number(r.lastInsertRowid);
   }
-  due(now = new Date()) { return this.db.prepare("SELECT * FROM outbox WHERE sent_at IS NULL AND next_attempt_at <= ? ORDER BY id").all(now.toISOString()) as unknown as { id: number; lead_id: number; channel: string; payload: string; attempts: number }[]; }
+  /** A message that has failed 12 times (about two days of backoff) stops being retried and stays in the table for a person to look at. */
+  due(now = new Date()) { return this.db.prepare("SELECT * FROM outbox WHERE sent_at IS NULL AND attempts < 12 AND next_attempt_at <= ? ORDER BY id").all(now.toISOString()) as unknown as { id: number; lead_id: number; channel: string; payload: string; attempts: number }[]; }
   /** Two overlapping drains must not both send the same row: the first to claim it wins, and a claim older than 10 minutes counts as abandoned. */
   claim(id: number, now = new Date()): boolean {
     const stale = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
@@ -112,6 +115,8 @@ export class Ledger {
     const iso = cutoff.toISOString();
     const outbox = Number(this.db.prepare("DELETE FROM outbox WHERE lead_id IN (SELECT id FROM leads WHERE received_at < ?)").run(iso).changes);
     const leads = Number(this.db.prepare("DELETE FROM leads WHERE received_at < ?").run(iso).changes);
+    // "deleted" has to mean gone from the file: secure_delete zeroes freed pages and the checkpoint plus VACUUM drops them from the write-ahead log and the free list
+    if (leads || outbox) { this.db.exec("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;"); }
     return { leads, outbox };
   }
 }

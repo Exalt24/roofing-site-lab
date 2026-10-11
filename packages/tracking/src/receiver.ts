@@ -52,7 +52,8 @@ export function createReceiver(o: ReceiverOptions): Server {
   };
 
   return createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://x");
+    let url: URL;
+    try { url = new URL(req.url ?? "/", "http://x"); } catch { return json(res, 400, { error: "bad request target" }); } // a malformed target such as "//:" must be a 400, never an unhandled rejection that ends the process
     const ip = o.trustProxyHeader
       ? String(req.headers["cf-connecting-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim()
       : String(req.socket.remoteAddress ?? "");
@@ -65,6 +66,7 @@ export function createReceiver(o: ReceiverOptions): Server {
         if (!verifySignature(raw, req.headers["signature"] as string | undefined, o.signingKey)) return json(res, 401, { error: "bad signature" });
         let payload: Record<string, any>;
         try { payload = JSON.parse(raw.toString("utf8")); } catch { return json(res, 400, { error: "not json" }); }
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) return json(res, 400, { error: "expected a JSON object" });
         if (o.replayWindowSeconds) {
           // with a replay window set, a webhook must carry a readable timestamp inside it; a missing or unreadable one cannot be shown to be fresh
           const age = (now().getTime() - new Date(payload.timestamp ?? payload.start_time ?? payload.submitted_at ?? "").getTime()) / 1000;
