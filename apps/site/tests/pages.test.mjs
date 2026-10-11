@@ -88,3 +88,11 @@ test("MUTANT: a Tag Manager id or script address with script text in it is ignor
   build({ PUBLIC_GTM_ID: "GTM-ABC1234", PUBLIC_CALLRAIL_SCRIPT: "//cdn.callrail.com/companies/1/abc/12/swap.js" });
   assert.match(home(), /googletagmanager\.com\/gtm\.js/); assert.match(home(), /GTM-ABC1234/); assert.match(home(), /cdn\.callrail\.com\/companies\/1\/abc\/12\/swap\.js/);
 });
+
+test("the built site ships security response headers, and its images, scripts and styles stay free to load", () => {
+  const f = join(out, "_headers");
+  assert.ok(existsSync(f), "a _headers file makes Cloudflare Pages send them");
+  const h = readFileSync(f, "utf8");
+  for (const name of ["X-Content-Type-Options: nosniff", "Referrer-Policy:", "Permissions-Policy:", "Strict-Transport-Security:", "frame-ancestors 'none'"]) assert.ok(h.includes(name), name);
+  assert.equal(/script-src|default-src/.test(h), false, "a script policy would need testing against Tag Manager before it ships");
+});
