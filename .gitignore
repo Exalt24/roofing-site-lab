@@ -13,3 +13,4 @@ qa/
 *.log
 dist-pages/
 dist-truth/
+dist-policy/

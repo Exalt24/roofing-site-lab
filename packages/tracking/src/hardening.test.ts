@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { Ledger, parseCall, createReceiver, sign, toE164, sha256, ga4Payload, adsIngestEvent, adsIngestRequest, startServer, cleanLine } from "./index.ts";
 
-const call = (id: string, phone = "+16045550100", extra: Record<string, unknown> = {}) => ({ id, customer_phone_number: phone, customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: "2026-10-05T14:03:00-07:00", source: "Google Ads", landing_page_url: "https://x.example/?gclid=Cj0abc", first_call: true, ...extra });
+const call = (id: string, phone = "+16045550100", extra: Record<string, unknown> = {}) => ({ id, customer_phone_number: phone, customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: new Date(Date.parse("2026-10-05T21:03:00Z") + (Number(String(id).replace(/[^0-9]/g, "")) % 5000 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0)) * 60000).toISOString(), source: "Google Ads", landing_page_url: "https://x.example/?gclid=Cj0abc", first_call: true, ...extra });
 const CRLF = String.fromCharCode(13, 10);
 
 function rawRequest(port: number, requestLine: string): Promise<string> {

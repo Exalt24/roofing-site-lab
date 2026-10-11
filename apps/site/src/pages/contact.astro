@@ -14,9 +14,10 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
     <p>Prefer to talk? Call <a href={`tel:${ds.business.telephone}`} data-track="click_to_call">{ds.business.telephone.replace(/^\+1-/, "").replace("-", " ")}</a>.</p>
     {!connected && <p class="notice" role="note"><strong>Sample site:</strong> this quote form is not connected to a lead receiver, so nothing typed here is sent or stored. The receiver is built and tested in the repository but is not deployed for this demo.</p>}
     <form class="lead" method="post" action={connected ? endpoint : undefined} id="lead-form" data-connected={connected ? "yes" : "no"}>
-      <label>Your name<input name="name" autocomplete="name" required /></label>
-      <label>Phone<input name="phone" type="tel" autocomplete="tel" required /></label>
-      <label>Email<input name="email" type="email" autocomplete="email" /></label>
+      <p class="muted small-print">Fields marked * are required.</p>
+      <label>Your name *<input name="name" autocomplete="name" required aria-required="true" /></label>
+      <label>Phone *<input name="phone" type="tel" autocomplete="tel" required aria-required="true" /></label>
+      <label>Email (optional)<input name="email" type="email" autocomplete="email" /></label>
       <label>What do you need?
         <select name="service">
           <option value="">Not sure yet</option>
@@ -24,8 +25,8 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
         </select>
       </label>
       <label>Neighbourhood or city (optional)<input name="area" autocomplete="address-level2" /></label>
-      <label>What is going on with the roof?<textarea name="message" rows="4" required></textarea></label>
-      <label class="check"><input type="checkbox" name="marketing_opt_in" value="yes" /> Email me occasional roofing tips and offers (optional, you can unsubscribe at any time)</label>
+      <label>What is going on with the roof? *<textarea name="message" rows="4" required></textarea></label>
+      <label class="check"><input type="checkbox" name="marketing_opt_in" value="yes" /> Email me occasional roofing tips and offers from {ds.business.legalName}, {ds.business.streetAddress}, {ds.business.city} {ds.business.region} {ds.business.postalCode}, {ds.business.email}. This is optional. You can withdraw your consent at any time with the unsubscribe link in every email.</label>
       <input type="hidden" name="consent_text_version" value="privacy-2026-10" />
       <input type="hidden" name="submission_id" value="" />
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></div>
@@ -55,10 +56,11 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       try { if ((q.get("gclid") || q.get("wbraid") || q.get("gbraid")) && !sessionStorage.getItem("lab_click_time")) sessionStorage.setItem("lab_click_time", new Date().toISOString()); f.elements["click_time"].value = sessionStorage.getItem("lab_click_time") || ""; } catch (e) {}
       function newId() { if (window.crypto && crypto.randomUUID) f.elements["submission_id"].value = crypto.randomUUID(); }
       newId();
-      var m = document.cookie.match(/(?:^|; )_ga=GA\d\.\d\.(\d+\.\d+)/);
-      if (m) f.elements["ga_client_id"].value = m[1];
+      function readGa() { var m = document.cookie.match(/(?:^|; )_ga=GA\d\.\d\.(\d+\.\d+)/); if (m) f.elements["ga_client_id"].value = m[1]; }
+      readGa();
       f.addEventListener("submit", function (e) {
         e.preventDefault();
+        readGa(); // the cookie may have been set after this page loaded, so it is read again at the moment of sending
         if (f.dataset.connected !== "yes") return;
         var s = document.getElementById("lead-status");
         s.textContent = "Sending...";

@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { sign, verifySignature, toE164, clickIds, parseCall, parseForm, Ledger, createReceiver, drainOutbox, sha256, ga4Payload, adsIngestEvent, adsIngestRequest, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
 
 const KEY = "test-signing-key-not-a-secret";
-const callBody = (id: number, extra: object = {}) => JSON.stringify({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: "2026-10-05T14:03:00-07:00", source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
+const callBody = (id: number, extra: object = {}) => JSON.stringify({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: new Date(Date.parse("2026-10-05T21:03:00Z") + (Number(String(id).replace(/[^0-9]/g, "")) % 5000 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0)) * 60000).toISOString(), source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
 
 async function boot(opts: Partial<Parameters<typeof createReceiver>[0]> = {}) {
   const ledger = new Ledger();

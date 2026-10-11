@@ -53,7 +53,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
       <Pic file={hero.file} alt={hero.alt} width={hero.width} height={hero.height} sizes="100vw" priority />
       <div class="hero-copy">
         <h1>Roofing and solar on the North Shore, shown one finished job at a time</h1>
-        <p>Metal, cedar, shingle, flat roofs, skylights and solar in West Vancouver. Every page on this site comes from a finished job.</p>
+        <p>Metal, cedar, shingle, flat roofs, skylights and solar in West Vancouver. Every project page here is a finished job.</p>
         <p><a class="btn" href="/contact/">Get a free quote</a> <a class="btn call" href={`tel:${ds.business.telephone}`} data-track="click_to_call">Call {phone}</a> <a class="btn ghost" style="background:#fff" href="/projects/">See completed projects</a></p>
       </div>
     </section>
@@ -116,11 +116,9 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
       <p>A neighbourhood gets its own page only when we have finished enough work there to show you. Today that is:</p>
       <p>{page.links.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>
       {withoutPage.length > 0 && <p class="muted">{(() => {
-        const names = withoutPage.map((n) => n);
-        const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
-        const shown = ds.projects.filter((p) => p.status === "published").map((p) => nName(p)).filter((n) => withoutPage.includes(n ?? ""));
-        const note = shown.length ? ` ${[...new Set(shown)].join(" and ")} ${shown.length > 1 ? "have" : "has"} a finished job on the projects page, but not yet enough work for an area page.` : "";
-        return `We also work in ${list}. An area gets its own page when we have enough finished projects to show you.${note}`;
+        const withJob = new Set(ds.projects.filter((p) => p.status === "published").map((p) => nName(p)));
+        const sentences = withoutPage.map((n) => (withJob.has(n) ? `${n} has a finished job on the projects page, but not yet enough work for an area page.` : `${n} has no finished project to show yet.`));
+        return `An area gets its own page when we have enough finished projects to show you. ${sentences.join(" ")}`;
       })()}</p>}</div>
   )}
 

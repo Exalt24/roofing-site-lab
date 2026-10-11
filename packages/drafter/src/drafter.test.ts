@@ -100,3 +100,12 @@ test("MUTANT: the draft-only guard refuses a document that is not in the drafts 
   assert.throws(() => assertAllDrafts([{ _id: "drafts.ok" }, { _id: "project-p01" }]), /may only create draft documents/);
   assert.doesNotThrow(() => assertAllDrafts([{ _id: "drafts.ok" }]));
 });
+
+test("MUTANT: a draft that failed the checks is written with NEEDS A PERSON at the front of its title, a clean one is not", async () => {
+  const okRun = await draftProject(goodIntake, ctx, { llm: async () => structuredClone(goodDraft), model: "stub" });
+  const failRun = await draftProject(goodIntake, ctx, { llm: async () => bad(), model: "stub", maxAttempts: 1 });
+  assert.equal(failRun.status, "needs_human");
+  const title = (r: typeof okRun) => String((buildDocs(r, goodIntake, {}).find((d) => d._type === "project") as { title: string }).title);
+  assert.equal(title(okRun).startsWith("NEEDS A PERSON"), false);
+  assert.ok(title(failRun).startsWith("NEEDS A PERSON: "));
+});

@@ -56,6 +56,15 @@ export class Ledger {
 
   /** Idempotent: a re-delivered or reconciled event never creates a second row. */
   insert(e: LeadEvent, now = new Date()): { inserted: boolean; id: number } {
+    // The same call can arrive under two different ids: CallRail's documented post-call webhook sample carries a numeric id while its API lists the call as "CAL...", and nothing in its docs says
+    // they are the same value. So a call from the same caller number that started within one second of a stored call is the same call, whatever id it came with.
+    if (e.kind === "call" && e.phoneE164) {
+      const sec = Math.floor(Date.parse(e.occurredAt) / 1000);
+      if (Number.isFinite(sec)) {
+        const twin = this.db.prepare("SELECT id FROM leads WHERE kind = 'call' AND phone_e164 = ? AND ABS(CAST(strftime('%s', occurred_at) AS INTEGER) - ?) <= 1").get(e.phoneE164, sec) as { id: number } | undefined;
+        if (twin) return { inserted: false, id: twin.id };
+      }
+    }
     // ON CONFLICT, not check-then-insert: a webhook and the nightly reconcile can race for the same call, and the loser must read "already stored", not throw.
     const r = this.db.prepare(`INSERT INTO leads (kind, source_event_id, occurred_at, received_at, phone_e164, email_sha256, landing_page_url, source, medium, campaign, utm_source, utm_medium, utm_campaign, gclid, wbraid, gbraid, msclkid, ga_client_id, first_time, consent_version, marketing_opt_in, raw_json)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (kind, source_event_id) DO NOTHING`).run(

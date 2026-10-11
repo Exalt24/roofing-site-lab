@@ -30,7 +30,7 @@ export function buildDocs(run: RunResult, intake: Intake, assetRefs: Record<stri
   if (d) {
     const sec = (k: string) => d.sections.find((s) => s.key === k)?.body ?? "";
     docs.push({
-      _id: `drafts.project-ai-${intake.jobId}`, _type: "project", title: d.title, slug: { _type: "slug", current: slugify(d.title) }, summary: d.summary,
+      _id: `drafts.project-ai-${intake.jobId}`, _type: "project", title: run.status === "ready_for_review" ? d.title : `NEEDS A PERSON: ${d.title}`, slug: { _type: "slug", current: slugify(d.title) }, summary: d.summary,
       neighbourhood: ref(`neighbourhood-${intake.neighbourhoodSlug}`), roofType: intake.roofType,
       services: intake.serviceSlugs.map((s) => ref(`service-${s}`, s)), materials: intake.materialSlugs.map((m) => ref(`material-${m}`, m)),
       manufacturer: intake.manufacturer ?? undefined, colour: intake.colour ?? undefined, completedOn: intake.completedOn, squareFeet: intake.squareFeet ?? undefined, durationDays: intake.durationDays ?? undefined,

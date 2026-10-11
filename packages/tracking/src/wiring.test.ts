@@ -7,7 +7,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { Ledger, parseCall, sign, startServer, adsIngestEvent, adsIngestRequests, MAX_EVENTS_PER_REQUEST, createReceiver } from "./index.ts";
 
-const call = (id: string, phone = "+16045550100") => ({ id, customer_phone_number: phone, customer_name: "T", tracking_phone_number: "+17785550101", start_time: new Date().toISOString(), landing_page_url: "https://x.example/?gclid=G1", first_call: true });
+const call = (id: string, phone = "+16045550100") => ({ id, customer_phone_number: phone, customer_name: "T", tracking_phone_number: "+17785550101", start_time: new Date(Date.now() - (Number(id.replace(/[^0-9]/g, "")) % 5000 + 1) * 60000 - [...id].reduce((a, c) => a + c.charCodeAt(0), 0) * 1000).toISOString(), landing_page_url: "https://x.example/?gclid=G1", first_call: true });
 const base = { CALLRAIL_SIGNING_KEY: "k", OWNER_EMAIL: "o@example.com", PORT: "0", LEDGER_PATH: ":memory:" };
 const portOf = (r: { server: { address(): unknown } }) => (r.server.address() as AddressInfo).port;
 const form = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries({ name: "Ana Souza", phone: "604-555-0188", message: "Water stain under the skylight", ...o })) f.set(k, v); return f; };
@@ -159,4 +159,36 @@ test("a long list of conversions goes up in requests of at most 2,000 events", (
   const reqs = adsIngestRequests({ operatingAccountId: "1", conversionActionId: "2" }, Array.from({ length: 4001 }, () => ev), { consent: true });
   assert.deepEqual(reqs.map((r) => r.events.length), [MAX_EVENTS_PER_REQUEST, MAX_EVENTS_PER_REQUEST, 1]);
   assert.equal(reqs.every((r) => r.validateOnly), true);
+});
+
+test("MUTANT: the same call arriving under a numeric webhook id and a CAL... API id is stored once, and two different calls from one caller stay two rows", async () => {
+  const l = new Ledger();
+  const webhook = { ...call("766970532", "+16045550142"), start_time: "2026-10-05T14:03:00-07:00" };
+  const api = { ...call("CAL8154748ae6bd4e278a7cddd38a662f4f", "+16045550142"), start_time: "2026-10-05T21:03:00.000Z" };
+  const a = l.insert(parseCall(webhook));
+  const b = l.insert(parseCall(api));
+  assert.deepEqual([a.inserted, b.inserted, b.id], [true, false, a.id], "same caller, same second, different id: the same call");
+  assert.equal(l.count("call"), 1);
+  const later = l.insert(parseCall({ ...call("CALlater", "+16045550142"), start_time: "2026-10-05T14:09:00-07:00" }));
+  assert.equal(later.inserted, true, "a second call from the same number minutes later is a new call");
+  const other = l.insert(parseCall({ ...call("CALother", "+17785550999"), start_time: "2026-10-05T14:03:00-07:00" }));
+  assert.equal(other.inserted, true, "another caller at the same moment is a new call");
+  const { reconcileCalls } = await import("./index.ts");
+  const rep = await reconcileCalls(l, async () => [api, { ...call("CALnew", "+16045550143"), start_time: "2026-10-06T10:00:00-07:00" }], "2026-10-01");
+  assert.deepEqual([rep.checked, rep.missing], [2, 1], "the reconcile does not duplicate a call the webhook already stored");
+});
+
+test("MUTANT: a call lead says its age is counted from the call, a form lead with a click time does not, session_id must be a whole number, and an Ads account id loses its hyphens", async () => {
+  const { ga4Payload, adsIngestRequest } = await import("./index.ts");
+  const l = new Ledger();
+  const { id } = l.insert({ ...parseCall(call("CAVEAT1")), gaClientId: "1.2" });
+  const row = l.get(id)!;
+  const at = new Date(new Date(row.occurred_at).getTime() + 86400000);
+  assert.match(adsIngestEvent(row, { stage: "sold", value: 1, at, uploadAt: at }).note, /counted from the call time/);
+  assert.equal(adsIngestEvent({ ...row, kind: "form", click_at: row.occurred_at }, { stage: "sold", value: 1, at, uploadAt: at }).note, "ok");
+  const now = new Date(row.occurred_at);
+  assert.equal(ga4Payload(row, "generate_lead", { at: now, now, sessionId: "12345" }).payload?.events[0].params.session_id, 12345);
+  assert.equal(ga4Payload(row, "generate_lead", { at: now, now, sessionId: "abc" }).payload?.events[0].params.session_id, undefined);
+  const req = adsIngestRequest({ operatingAccountId: "123-456-7890", conversionActionId: "9" }, [], { consent: true });
+  assert.equal(req.destinations[0].operatingAccount.accountId, "1234567890");
 });

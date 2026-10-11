@@ -107,7 +107,7 @@ form.lead label.check input { width: auto; margin-top: .35em; }
 .hero .btn { text-shadow: none; }
 .site-header .brand { min-height: 44px; display: inline-flex; align-items: center; }
 .card-body h2 a { display: inline-block; padding: 10px 0; }
-.section p a[href^="tel:"] { display: inline-block; padding: 10px 4px; }
+.section p a[href^="tel:"] { display: inline-block; }
 .btn:disabled { min-height: 44px; }
 video { object-fit: cover; }
 nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
@@ -115,3 +115,7 @@ nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 
 .hero .hero-copy p:last-of-type { max-width: none; }
 .story figure { margin: 16px 0; }
 .card-body .muted { overflow-wrap: anywhere; }
+/* fifth pass, from research and output round 4 */
+.cta a:focus-visible { outline-color: #fff; }
+.section p a[href^="tel:"] { padding: 10px 0; }
+.hero .hero-copy { background: linear-gradient(to top, rgba(10, 20, 25, .78), rgba(10, 20, 25, 0) 75%); }

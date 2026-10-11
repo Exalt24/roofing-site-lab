@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { sha256, normaliseEmail, parseCall, Ledger, ga4Payload, adsIngestEvent, adsIngestRequest, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
 
 const DAY = 24 * 3600 * 1000;
-const call = (id: number, extra: Record<string, unknown> = {}) => ({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: "2026-10-05T14:03:00-07:00", source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
+const call = (id: number, extra: Record<string, unknown> = {}) => ({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: new Date(Date.parse("2026-10-05T21:03:00Z") + (Number(String(id).replace(/[^0-9]/g, "")) % 5000 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0)) * 60000).toISOString(), source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
 const lead = (extra: Record<string, unknown> = {}) => { const l = new Ledger(); const { id } = l.insert(parseCall(call(1, extra))); return { l, row: l.get(id)! }; };
 const after = (row: { occurred_at: string }, days: number) => new Date(new Date(row.occurred_at).getTime() + days * DAY);
 

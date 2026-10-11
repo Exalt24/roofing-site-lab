@@ -24,7 +24,8 @@ export function ga4Payload(lead: LeadRow, stage: Ga4Stage, opts: { value?: numbe
   if (opts.value !== undefined) { params.value = opts.value; params.currency = opts.currency ?? "CAD"; } // value and currency travel together or not at all
   const src = lead.utm_source ?? lead.source;
   if (src && stage === "generate_lead") params.lead_source = src; // documented for generate_lead only
-  if (opts.sessionId !== undefined && ageHours <= 24) params.session_id = opts.sessionId;
+  // session_id is a positive integer in the documented format; anything else is left out rather than sent as the wrong type
+  if (opts.sessionId !== undefined && ageHours <= 24 && /^\d+$/.test(String(opts.sessionId))) params.session_id = Number(opts.sessionId);
   const p: Ga4Payload = { client_id: lead.ga_client_id, events: [{ name: stage, params }] };
   let note = "ok";
   if (ageHours <= 72 && ageHours >= 0) p.timestamp_micros = at.getTime() * 1000; // Google wants a time between 72 hours ago and now
@@ -88,10 +89,12 @@ export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value
     transactionId: `lead-${lead.id}-${opts.stage}`, eventSource: lead.kind === "call" ? "PHONE" : "WEB",
   };
   const days = Math.floor(age);
+  // a call carries no click time, so its age is counted from the call; the real click can be older, and Google also drops a click older than the conversion action's click-through window (30 days unless set otherwise)
+  const caveat = lead.kind === "call" && !lead.click_at ? "; counted from the call time, so the click may be older" : "";
   if (hasClickId && age <= CLICK_ID_DAYS) {
     event.adIdentifiers = lead.gclid ? { gclid: lead.gclid } : lead.gbraid ? { gbraid: lead.gbraid } : { wbraid: lead.wbraid! };
     if (identifiers.length && age <= USER_DATA_DAYS) event.userData = { userIdentifiers: identifiers };
-    return { event, note: identifiers.length && age > USER_DATA_DAYS ? `the click is ${days} days old at upload: sent with the click id only, because matching on phone and email stops at ${USER_DATA_DAYS} days` : "ok" };
+    return { event, note: identifiers.length && age > USER_DATA_DAYS ? `the click is ${days} days old at upload: sent with the click id only, because matching on phone and email stops at ${USER_DATA_DAYS} days${caveat}` : `ok${caveat}` };
   }
   if (identifiers.length && age <= USER_DATA_DAYS) {
     event.userData = { userIdentifiers: identifiers };
@@ -104,7 +107,7 @@ export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value
  *  Consent has no default: the caller states whether the person agreed to their hashed details being used for ad measurement, and the privacy page must say so. */
 export function adsIngestRequest(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; validateOnly?: boolean }): IngestEventsRequest {
   const consent = opts.consent ? "CONSENT_GRANTED" : "CONSENT_DENIED";
-  const account = (id: string) => ({ accountType: "GOOGLE_ADS" as const, accountId: id });
+  const account = (id: string) => ({ accountType: "GOOGLE_ADS" as const, accountId: id.replace(/-/g, "") }); // Google wants the 10 digit customer id without hyphens
   return {
     destinations: [{ operatingAccount: account(dest.operatingAccountId), loginAccount: account(dest.loginAccountId ?? dest.operatingAccountId), productDestinationId: dest.conversionActionId }],
     encoding: "HEX", consent: { adUserData: consent, adPersonalization: consent }, events, validateOnly: opts.validateOnly ?? true,

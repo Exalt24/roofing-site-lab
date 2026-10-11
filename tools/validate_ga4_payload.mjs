@@ -1,4 +1,4 @@
-// Checks our GA4 Measurement Protocol payloads against Google's own validation server (/debug/mp/collect). Nothing sent here reaches a report;
+// Checks our GA4 Measurement Protocol payloads against Google's own validation server (/debug/mp/collect). Nothing sent here reaches a report; The default validation is RELAXED, which only rejects a malformed request; ENFORCE_RECOMMENDATIONS also rejects a timestamp older than 72 hours or a session_id of the wrong type, so that is what this tool asks for.
 // the validation server also does not check the api_secret, so a placeholder is enough. A real send never errors on a bad payload, which is why this exists.
 //   node tools/validate_ga4_payload.mjs [G-MEASUREMENTID]
 import { Ledger, parseCall, ga4Payload } from "../packages/tracking/src/index.ts";
@@ -16,7 +16,7 @@ const cases = [
 let bad = 0;
 for (const [label, { payload, note }] of cases) {
   if (!payload) { console.log(label, "-> no payload:", note); bad++; continue; }
-  const r = await fetch(`https://www.google-analytics.com/debug/mp/collect?measurement_id=${measurementId}&api_secret=placeholder`, { method: "POST", body: JSON.stringify(payload) });
+  const r = await fetch(`https://www.google-analytics.com/debug/mp/collect?measurement_id=${measurementId}&api_secret=placeholder`, { method: "POST", body: JSON.stringify({ ...payload, validation_behavior: "ENFORCE_RECOMMENDATIONS" }) });
   const j = await r.json();
   const msgs = j.validationMessages ?? [];
   console.log(label, "-> HTTP", r.status, msgs.length ? JSON.stringify(msgs) : "no validation messages");

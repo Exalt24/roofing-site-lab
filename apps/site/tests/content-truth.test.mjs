@@ -43,11 +43,11 @@ test("article, video and sitemap dates are the build day, not a job finish date"
   assert.ok(articles >= 11 && videos >= 1);
 });
 
-test("MUTANT: the areas page says a neighbourhood with a finished job but no area page has a job, and writes its list with an 'and'", () => {
+test("MUTANT: the areas page says a neighbourhood with a finished job but no area page has a job, and says plainly which neighbourhood has no finished project at all", () => {
   const a = pages.find((p) => p.file === "/areas/index.html");
   assert.ok(a);
   assert.match(a.html, /Horseshoe Bay has a finished job on the projects page/);
-  assert.match(a.html, /Horseshoe Bay and Lynn Valley|Lynn Valley and Horseshoe Bay/);
+  assert.match(a.html, /Lynn Valley has no finished project to show yet/);
 });
 
 test("job dates read as a month and a year, and the business no longer claims a district none of its jobs are in", () => {
