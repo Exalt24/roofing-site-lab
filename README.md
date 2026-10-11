@@ -34,7 +34,7 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 | Google Ads payloads | Built to the Data Manager API's documented shape; **never sent**, there is no Ads account behind this lab |
 | CallRail number swapping | Built against CallRail's documented behaviour and tested with a **simulator** (`apps/site/public/callrail-sim.js`) that is not CallRail's code and is not deployed with the live site: the `noswap` attribute, the "All Except Direct & Organic" pool, no automatic rescan. 8 tests |
 | Site structure | 7 tests on the built HTML of all 35 pages: one H1, no skipped heading levels, skip link, share tags, credentials, JSON-LD parses, honest contact form, 404, and a Tag Manager id with script text in it is ignored. 3 more check image metadata |
-| Google Analytics, Tag Manager, Search Console, Bing | The page template takes the ids from environment variables (`PUBLIC_GTM_ID`, `PUBLIC_GSC_TOKEN`, `PUBLIC_BING_TOKEN`); none are connected on the live sample |
+| Google Analytics, Tag Manager, Search Console, Bing | **Connected on the live sample, on a test Google account.** A GA4 property and a Tag Manager container: a Google tag plus `click_to_call` and `generate_lead` event tags, exported in `docs/gtm-container.json`. Driven end to end: a visit from a real browser put `page_view`, `click_to_call`, `first_visit` and `session_start` in GA4's Realtime report (headless Chrome is filtered as a bot and shows nothing). `generate_lead` is configured but has not fired, because the sample form is not connected. Search Console is verified by meta tag with the sitemap submitted (it read "Couldn't fetch" right after submission, which is common on a new site). Bing Webmaster Tools is verified by meta tag; its sitemap form returned a server error, so the 34 URLs went in through IndexNow instead (`tools/indexnow.mjs`, accepted with 202). The ids come from `PUBLIC_GTM_ID`, `PUBLIC_GSC_TOKEN` and `PUBLIC_BING_TOKEN` |
 | Hosted site and Studio | Cloudflare Pages (`tools/deploy_pages.mjs`) and a hosted Sanity Studio |
 | Total | 105 tests across four packages |
 
@@ -46,14 +46,16 @@ CallRail's own integrations overlap with this ledger: its GA4 events cannot fill
 
 ## Speed
 
-Lighthouse 13.5.0, mobile profile with simulated throttling, run against the live site on 2026-10-12, no analytics or call-tracking scripts loaded (so these are the floor, and adding a tag manager and a swap script will cost something). Across six pages (home, a project, an area, contact, services, privacy) Accessibility, Best Practices and SEO were all 100. Performance and the largest paint:
+Lighthouse 13.5.0, mobile profile with simulated throttling, run against the live site on 2026-10-12 **with Tag Manager and GA4 loaded** (CallRail is not connected, so its script is not counted). Across six pages (home, a project, an area, contact, services, privacy) Accessibility, Best Practices and SEO were all 100. Performance and the largest paint:
 
-| Page | Performance | LCP | CLS | TBT |
-|---|---|---|---|---|
-| Home (4 runs) | 100, 100, 99, and 90 on the first request after a deploy while the image CDN cache was cold | 1.8 s to 2.1 s warm, 2.8 s cold | 0 | 0 ms |
-| Project page (standing seam on a hillside) | 100 | 1.3 s | 0 | 0 ms |
-| Area page | 98 | 2.2 s | 0 | 0 ms |
-| Contact, services, privacy | 100 | 1.1 s to 1.3 s | 0 | 0 ms |
+| Page | Performance | LCP | CLS | TBT | Transferred |
+|---|---|---|---|---|---|
+| Home | 100 | 1.9 s | 0 | 33 ms | 379 KB |
+| Project page (standing seam on a hillside) | 100 | 0.9 s | 0 | 27 ms | 407 KB |
+| Area page | 99 | 2.1 s | 0 | 28 ms | 370 KB |
+| Contact, services, privacy | 100 | 1.2 s to 1.3 s | 0 | 56 ms to 58 ms | about 304 KB |
+
+Before Tag Manager was connected the same pages scored 98 to 100 and moved 4 KB to 109 KB, so the tag costs about 300 KB and under 60 ms of blocking time here. One home-page run right after a deploy scored 90 (LCP 2.8 s) while the image CDN cache was cold. A CallRail swap script will add to this.
 
 Re-run with `node tools/lighthouse_run.mjs <url>`; reports are not committed.
 

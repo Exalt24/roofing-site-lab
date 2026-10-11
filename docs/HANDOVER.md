@@ -39,4 +39,4 @@ One brand is one Sanity project, one Cloudflare Pages project and one set of set
 
 ## What this lab did not do
 
-No live CallRail, Google Ads or GA4 property was connected. The nightly CallRail reconcile is written from CallRail's published API reference and has not been run against an account. The hosted Sanity Studio and the site are samples.
+No live CallRail account or Google Ads account was connected. GA4, Tag Manager, Search Console and Bing are connected to the sample site on a test Google account (see the README register). The nightly CallRail reconcile is written from CallRail's published API reference and has not been run against an account. The hosted Sanity Studio and the site are samples.
