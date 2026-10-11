@@ -33,11 +33,22 @@ test("the correct draft still passes after the stricter checks (no false alarm o
   assert.deepEqual(run(clone(goodDraft)).errors, []);
 });
 
+test("MUTANT: invisible and lookalike characters do not walk a banned word, a number or a phone number past the checks", () => {
+  const withText = (t: string) => { const d = clone(goodDraft); d.sections[2].body += " " + t; return run(d).errors.join(" | "); };
+  assert.notEqual(withText("We offer a lifetime guar​antee on the work."), "", "zero-width space inside a banned word");
+  assert.notEqual(withText("That is a war­ranty on the work."), "", "soft hyphen inside a banned word");
+  assert.notEqual(withText("Customers save ２５ percent."), "", "fullwidth digits");
+  const i = clone(goodIntake); i.private.customerName = "Marguerite Tallow"; i.staffNotes = "Marguerite called";
+  assert.match(inputPrivacyProblems(i).join(" | "), /customer detail/);
+  const j = clone(goodIntake); j.staffNotes = "call ６０４-５５５-０１８８ tomorrow";
+  assert.match(inputPrivacyProblems(j).join(" | "), /phone number/, "a fullwidth phone number");
+});
+
 test("MUTANT: a two-letter surname typed in the notes refuses the intake, and a draft repeating it fails", () => {
   const i = clone(goodIntake); i.private.customerName = "Li Wu"; i.staffNotes = "Li Wu called twice about the leak. Wu is the owner.";
   assert.match(inputPrivacyProblems(i).join(" | "), /"Wu" \(a customer detail\)/);
   const d = clone(goodDraft); d.sections[0].body += " Li Wu was thrilled with the result.";
-  assert.match(run(d, i).errors.join(" | "), /private customer detail "(Li|Wu)"/);
+  assert.match(run(d, i).errors.join(" | "), /a private customer detail appears/);
 });
 
 test("MUTANT: the intake screen reaches the colour, manufacturer, roof type and photo description boxes, and brackets-and-spaces phone numbers", () => {

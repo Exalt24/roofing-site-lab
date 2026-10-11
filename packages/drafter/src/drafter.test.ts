@@ -101,6 +101,14 @@ test("MUTANT: the draft-only guard refuses a document that is not in the drafts 
   assert.doesNotThrow(() => assertAllDrafts([{ _id: "drafts.ok" }]));
 });
 
+test("MUTANT: a photo id named like an object property does not become an asset reference", async () => {
+  const draft = structuredClone(goodDraft); draft.photos[0].photoId = "constructor";
+  const r = await draftProject(goodIntake, ctx, { llm: async () => structuredClone(draft), model: "stub", maxAttempts: 1 });
+  const docs = buildDocs(r, goodIntake, {});
+  const project = docs.find((d) => d._type === "project") as { photos?: unknown[] } | undefined;
+  assert.ok(!project || (project.photos ?? []).every((p) => (p as { asset: { _ref?: unknown } }).asset._ref !== undefined && typeof (p as { asset: { _ref?: unknown } }).asset._ref === "string"));
+});
+
 test("MUTANT: a malformed best-effort draft is kept in the aiRun record and writing it does not crash or build a project document", async () => {
   for (const wrong of [{ title: "x" }, { ...structuredClone(goodDraft), sections: "oops" }, { ...structuredClone(goodDraft), photos: null }, { ...structuredClone(goodDraft), photos: [null] }]) {
     const r = await draftProject(goodIntake, ctx, { llm: async () => wrong as never, model: "stub", maxAttempts: 1 });

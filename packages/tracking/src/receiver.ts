@@ -123,7 +123,7 @@ export function createReceiver(o: ReceiverOptions): Server {
           consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", measurementOptIn: measure, clickAt,
         };
         const r = o.ledger.insert(ev, now());
-        if (r.inserted) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${pageWithoutQuery(landing)}` : ""}` }, now());
+        if (r.inserted || !o.ledger.hasOutbox(r.id)) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${pageWithoutQuery(landing)}` : ""}` }, now());
         return json(res, 200, { ok: true }, origin);
       }
       return json(res, 404, { error: "not found" });

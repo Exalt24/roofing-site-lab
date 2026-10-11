@@ -19,7 +19,7 @@ const mutants: [string, (d: Draft) => void, RegExp, ((i: Intake) => void)?][] = 
   ["an invented manufacturer", (d) => { d.sections[2].body = d.sections[2].body.replace("Cascade Shingle Co.", "Mapleridge Roofing Systems"); }, /Mapleridge Roofing/],
   ["an invented material", (d) => { d.sections[2].body += " We used copper flashing at the valley."; }, /material "copper"/],
   ["a warranty claim", (d) => { d.summary += " It comes with a lifetime warranty."; }, /banned claim/],
-  ["a customer name leaking into public text", (d) => { d.sections[0].body += " Marguerite asked us to look at it."; }, /private customer detail "Marguerite"/],
+  ["a customer name leaking into public text", (d) => { d.sections[0].body += " Marguerite asked us to look at it."; }, /a private customer detail appears/],
   ["a street address leaking", (d) => { d.sections[1].body += " It is at 4471 Birchwood Crescent."; }, /private customer detail|street address/],
   ["a phone number leaking", (d) => { d.sections[3].body += " Call 604-555-0199."; }, /phone number|private customer detail/],
   ["a section with no citation", (d) => { d.sections[0].supportedBy = []; }, /cites no source fact/],

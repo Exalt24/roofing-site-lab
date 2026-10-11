@@ -106,9 +106,12 @@ export class Ledger {
         if (typeof p.text === "string") { p.text = p.text.split(/\r?\n/).filter((l) => !l.startsWith("Page: ")).join("\n").trimEnd(); this.db.prepare("UPDATE outbox SET payload = ? WHERE id = ?").run(JSON.stringify(p), o.id); }
       } catch { /* a payload that is not JSON has nothing to take out */ }
     }
-    this.scrub();
+    this.needsScrub = !this.scrub();
     return true;
   }
+
+  /** True when a notification row exists for this lead (sent or not): a retried submission must not leave a stored lead that nobody was told about. */
+  hasOutbox(leadId: number): boolean { return !!this.db.prepare("SELECT 1 FROM outbox WHERE lead_id = ? LIMIT 1").get(leadId); }
 
   findByPhone(e164: string): LeadRow[] { return this.db.prepare("SELECT * FROM leads WHERE phone_e164 = ? ORDER BY occurred_at").all(e164) as unknown as LeadRow[]; }
 
@@ -170,7 +173,7 @@ export class Ledger {
     // "deleted" has to mean gone from the file: secure_delete zeroes freed pages and the checkpoint plus VACUUM drops them from the write-ahead log and the free list
     let scrubbed = true;
     if (leads || outbox) this.db.exec("VACUUM");
-    if (leads || outbox || this.needsScrub) { scrubbed = this.scrub(); this.needsScrub = !scrubbed; }
+    scrubbed = this.scrub(); this.needsScrub = !scrubbed; // always: a daily purge also retries any scrub (after a send or a withdrawal) that another connection blocked
     return { leads, outbox, scrubbed };
   }
 }

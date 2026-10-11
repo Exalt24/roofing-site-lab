@@ -19,7 +19,7 @@ A tracking set-up fails quietly: Google's Measurement Protocol does not return a
 - **The click id was never captured.** Safari's link-tracking protection can remove tracking parameters from a URL; WebKit does not publish the list, so test the real landing page in Safari with all browsing protected. Store the click id on first landing in a first-party script.
 - **The old upload route.** New work cannot use the Google Ads API `UploadClickConversions` method (restricted from 2026-06-15). This repo builds Data Manager API requests only.
 - **A custom-event trigger that never matches.** Importing a Tag Manager container with Overwrite can disable the built-in Event variable, and every Custom Event trigger then silently stops firing while the dataLayer push still shows in the page. Found on this sample: the `click_to_call` push was there and GA4 received nothing until the Event variable was enabled again (`docs/gtm-container.json` includes it).
-- **Numbers not swapping.** CallRail alerts when a number has not swapped for 3 days and runs a daily snippet check; turn those emails on.
+- **Numbers not swapping.** CallRail alerts when a number has not swapped for several days (its help article says 3, a 2025 community post says the default is 5) and runs a daily snippet check; turn those emails on.
 
 ## What is not verified here
 

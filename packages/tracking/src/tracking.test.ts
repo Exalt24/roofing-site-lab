@@ -212,6 +212,49 @@ test("MUTANT: only the exact word yes counts as a tick, a message over 2000 char
   await t.close();
 });
 
+test("MUTANT: a very long field cannot stall the receiver (no pattern backtracks on spaces or repeated characters)", async () => {
+  const t = await boot();
+  const big = " ".repeat(120_000);
+  for (const field of ["phone", "name", "email", "message", "service", "area", "landing_page", "utm_source", "click_time", "submission_id"]) {
+    const t0 = Date.now();
+    const r = await fetch(t.base + "/api/lead", { method: "POST", body: formData({ [field]: field === "message" ? "a" + big : "6" + big + "b" }) });
+    assert.ok(Date.now() - t0 < 1500, `${field} took ${Date.now() - t0} ms`);
+    assert.ok(r.status === 400 || r.status === 200, `${field} gave ${r.status}`);
+  }
+  const t1 = Date.now(); assert.equal(toE164("6" + big + "b"), null); assert.ok(Date.now() - t1 < 100);
+  await t.close();
+});
+
+test("MUTANT: a withdrawal blocked by a reader is retried by the next purge even though nothing is due, and a retried submission whose notification was never queued gets one", async () => {
+  const { mkdtempSync, rmSync, readFileSync, existsSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { DatabaseSync } = await import("node:sqlite");
+  const dir = mkdtempSync(join(tmpdir(), "wb-"));
+  const file = join(dir, "l.sqlite");
+  let reader: InstanceType<typeof DatabaseSync> | undefined;
+  let l: Ledger | undefined;
+  try {
+    l = new Ledger(file);
+    const { id } = l.insert({ ...parseForm({ id: 51, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/?gclid=GCLIDWITHDRAWBLOCKED", submitted_at: new Date().toISOString() }), gaClientId: "9.9", measurementOptIn: true });
+    reader = new DatabaseSync(file); reader.exec("BEGIN"); reader.prepare("SELECT COUNT(*) FROM leads").all();
+    assert.equal(l.withdrawMeasurement(id), true);
+    assert.equal(l.scrub(), false, "the reader still blocks the log");
+    reader.exec("COMMIT"); reader.close(); reader = undefined;
+    assert.equal(l.purgeOlderThan(24, new Date()).scrubbed, true);
+    assert.equal(existsSync(file + "-wal") && readFileSync(file + "-wal").includes("GCLIDWITHDRAWBLOCKED"), false, "the click id is gone from the log after the daily purge");
+  } finally { reader?.close(); l?.db.close(); rmSync(dir, { recursive: true, force: true }); }
+  const t = await boot();
+  const sid = "11111111-2222-4333-8444-555555555555";
+  t.ledger.insert({ ...parseForm({ id: 52, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/", submitted_at: new Date().toISOString() }), sourceEventId: `site-${sid}` });
+  assert.equal(t.ledger.pending(), 0);
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: sid }) });
+  assert.equal(t.ledger.pending(), 1, "the stored lead whose notification was never queued is notified on the retry");
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: sid }) });
+  assert.equal(t.ledger.pending(), 1, "a second retry does not queue a second notification");
+  await t.close();
+});
+
 test("the withdraw command deletes one lead's advertising details in a real ledger file and refuses an unknown id", async () => {
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, rmSync } = await import("node:fs");

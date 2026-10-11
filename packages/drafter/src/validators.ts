@@ -63,6 +63,15 @@ function properNames(text: string): string[] {
   return [...out];
 }
 
+/** Compatibility-fold a string (fullwidth and Arabic-Indic digits, ligatures) and drop invisible format characters (zero-width space, soft hyphen). */
+export const nfk = (s: string): string => s.normalize("NFKC").replace(/\p{Cf}/gu, "");
+function normaliseStrings<T>(x: T): T {
+  if (typeof x === "string") return nfk(x) as T;
+  if (Array.isArray(x)) return x.map(normaliseStrings) as T;
+  if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, normaliseStrings(v)])) as T;
+  return x;
+}
+
 /** The customer details that must never appear in public text, split into the pieces a draft could repeat on their own. */
 export function privateBits(intake: Intake): string[] {
   const pv = intake.private;
@@ -83,11 +92,11 @@ export function inputPrivacyProblems(intake: Intake): string[] {
   const bits = privateBits(intake);
   for (const [label, value] of boxes) {
     if (!value) continue;
-    const t = value.toLowerCase();
+    const nv = nfk(value); const t = nv.toLowerCase();
     for (const b of bits) if (hasWord(t, b.toLowerCase())) out.push(`"${b}" (a customer detail) is typed in the ${label} box`);
-    if (PHONE_PATTERN.test(value)) out.push(`a phone number is typed in the ${label} box`);
-    if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(value)) out.push(`an email address is typed in the ${label} box`);
-    if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(value)) out.push(`a street address is typed in the ${label} box`);
+    if (PHONE_PATTERN.test(nv)) out.push(`a phone number is typed in the ${label} box`);
+    if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(nv)) out.push(`an email address is typed in the ${label} box`);
+    if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(nv)) out.push(`a street address is typed in the ${label} box`);
   }
   return out;
 }
@@ -97,7 +106,8 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   const warnings: string[] = [];
   const shape = shapeErrors(draft);
   if (shape.length) return { ok: false, errors: shape, warnings };
-  const d = draft as Draft;
+  // look through lookalike characters and invisible ones (fullwidth digits, zero-width spaces, soft hyphens) before any check, or they walk a banned word or a number past every pattern
+  const d = normaliseStrings(draft) as Draft;
   const facts = buildFacts(intake, ctx);
   const byId = new Map<string, Fact>(facts.map((f) => [f.id, f]));
   const entered = facts.filter((f) => f.kind === "entered");
@@ -189,7 +199,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   if (canary && text.includes(canary[0])) errors.push(`the draft contains ${canary[0]}, so it followed an instruction hidden in the staff notes`);
 
   // 6. private data
-  for (const b of privateBits(intake)) if (hasWord(lc(text), lc(b))) errors.push(`private customer detail "${b}" appears in public text`);
+  for (const b of privateBits(intake)) if (hasWord(lc(text), lc(b))) errors.push("a private customer detail appears in public text");
   if (PHONE_PATTERN.test(text)) errors.push("a phone number appears in public text");
   if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(text)) errors.push("an email address appears in public text");
   if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(text)) errors.push("a street address appears in public text");

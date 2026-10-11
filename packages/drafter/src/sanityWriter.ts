@@ -37,7 +37,7 @@ export function buildDocs(run: RunResult, intake: Intake, assetRefs: Record<stri
       services: intake.serviceSlugs.map((s) => ref(`service-${s}`, s)), materials: intake.materialSlugs.map((m) => ref(`material-${m}`, m)),
       manufacturer: intake.manufacturer ?? undefined, colour: intake.colour ?? undefined, completedOn: intake.completedOn, squareFeet: intake.squareFeet ?? undefined, durationDays: intake.durationDays ?? undefined,
       existingConditions: sec("existingConditions"), challenges: sec("challenges"), solution: sec("solution"), outcome: sec("outcome"),
-      photos: d.photos.filter((p) => assetRefs[p.photoId]).map((p) => ({ _key: p.photoId, _type: "image", asset: ref(assetRefs[p.photoId]), alt: p.alt, caption: p.caption })),
+      photos: d.photos.filter((p) => Object.hasOwn(assetRefs, p.photoId) && assetRefs[p.photoId]).map((p) => ({ _key: p.photoId, _type: "image", asset: ref(assetRefs[p.photoId]), alt: p.alt, caption: p.caption })),
       aiRun: { ...ref(runId), _weak: true },
     });
   }

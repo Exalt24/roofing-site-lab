@@ -38,7 +38,8 @@ export function gaClientIdFrom(raw: string | null | undefined): string | undefin
 export function toE164(raw: string | null | undefined, defaultCountry = "1"): string | null {
   if (!raw) return null;
   // an extension ("ext. 12", "x12", "#12") is not part of the number: cut it off before reading digits, or "...0142 ext. 1234" becomes a bogus 15 digit number
-  const main = raw.split(/\s*(?:ext\.?|extension|x|#)\s*\d+\s*$/i)[0];
+  if (raw.length > 64) return null; // no phone number is this long, and a very long run of spaces would make the pattern below take seconds
+  const main = raw.split(/\s{0,5}(?:ext\.?|extension|x|#)\s{0,5}\d+\s{0,5}$/i)[0];
   const d = main.replace(/[^\d+]/g, "");
   // North American numbers (+1) must be a real shape: ten digits, area code and exchange not starting with 0 or 1; anything else would be hashed and uploaded as a number nobody owns
   const nanp = (e: string) => (e.startsWith("+1") ? /^\+1[2-9]\d{2}[2-9]\d{6}$/.test(e) : true);
