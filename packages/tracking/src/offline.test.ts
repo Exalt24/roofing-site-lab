@@ -22,11 +22,16 @@ test("Ads offline conversion (Data Manager API): one click id, hashed identifier
   assert.equal(req.validateOnly, true); assert.equal(req.encoding, "HEX"); assert.equal(req.destinations[0].productDestinationId, "555");
   assert.equal(adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [event!], { validateOnly: false, consent: false }).consent.adUserData, "CONSENT_DENIED");
   void l;
-  // British Columbia moved to permanent daylight time on 2026-03-08 (UTC-7 all year, tzdata 2026b)
-  const dec = adsIngestEvent({ ...row, occurred_at: "2026-11-25T20:00:00Z" }, { stage: "sold", value: 1, at: new Date("2026-12-01T20:00:00Z"), uploadAt: new Date("2026-12-01T20:00:00Z") });
-  assert.match(dec.event!.eventTimestamp, /-07:00$/);
-  const jan = adsIngestEvent({ ...row, occurred_at: "2026-01-10T20:00:00Z" }, { stage: "sold", value: 1, at: new Date("2026-01-15T20:00:00Z"), uploadAt: new Date("2026-01-15T20:00:00Z") });
-  assert.match(jan.event!.eventTimestamp, /-08:00$/);
+  // The timestamp must name the SAME instant whatever timezone data this Node build ships. BC moved to permanent UTC-7 in tzdata 2026b (Node 24); older Node builds (22.18 ships 2025b)
+  // still say -08:00 for a December date, which is a different wall clock for the same instant, so the test checks the instant and a Vancouver offset, not a particular offset.
+  const winter = new Date("2026-12-01T20:00:00Z");
+  const dec = adsIngestEvent({ ...row, occurred_at: "2026-11-25T20:00:00Z" }, { stage: "sold", value: 1, at: winter, uploadAt: winter });
+  assert.match(dec.event!.eventTimestamp, /-0[78]:00$/);
+  assert.equal(Date.parse(dec.event!.eventTimestamp), winter.getTime(), "same instant");
+  const jan = new Date("2026-01-15T20:00:00Z");
+  const janEv = adsIngestEvent({ ...row, occurred_at: "2026-01-10T20:00:00Z" }, { stage: "sold", value: 1, at: jan, uploadAt: jan });
+  assert.match(janEv.event!.eventTimestamp, /-08:00$/, "January 2026 was still standard time everywhere");
+  assert.equal(Date.parse(janEv.event!.eventTimestamp), jan.getTime(), "same instant");
 });
 
 test("the Gmail rules: dots and a plus suffix are dropped, whitespace is removed, other domains are only lower-cased, and the ledger hash matches the Ads hash", () => {

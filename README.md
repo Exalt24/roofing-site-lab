@@ -53,7 +53,7 @@ Lighthouse 13.5.0, mobile profile with simulated throttling, run against the liv
 
 | Page | Performance | LCP | CLS | TBT | Transferred |
 |---|---|---|---|---|---|
-| Home | 100 | 1.9 s | 0 | 33 ms | 379 KB |
+| Home | 100 | 1.8 s to 1.9 s | 0 | 31 to 33 ms | 379 to 392 KB |
 | Project page (standing seam on a hillside) | 100 | 0.9 s | 0 | 27 ms | 407 KB |
 | Area page | 99 | 2.1 s | 0 | 28 ms | 370 KB |
 | Contact, services, privacy | 100 | 1.2 s to 1.3 s | 0 | 56 ms to 58 ms | about 304 KB |
@@ -78,13 +78,14 @@ What bites first on the free tiers: Cloudflare's 500 builds a month counts build
 
 ## Run it
 
-Needs Node 22.18 or newer (the tests run TypeScript directly) and, for the site tests, a Chromium for Playwright.
+Needs Node 22.18 or newer (the tests run TypeScript directly; the suite was run on 22.18.0 and on 24.18.0) and, for the site tests, a Chromium for Playwright.
 
 ```sh
 npm install
 npx playwright install chromium
 npm test                      # 140 tests across four packages
 npm run build                 # builds from fixtures when no Sanity project id is set
+node tools/lighthouse_budget.mjs   # the performance budget CI runs after the build (about 40 seconds)
 ```
 
 GitHub Actions runs the same commands on every push.
