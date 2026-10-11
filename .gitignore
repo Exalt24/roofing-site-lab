@@ -12,3 +12,4 @@ qa/
 .sanity/
 *.log
 dist-pages/
+dist-truth/

@@ -4,7 +4,8 @@ import Base from "../layouts/Base.astro";
 import Pic from "../components/Pic.astro";
 import Card from "../components/Card.astro";
 import { loadDataset } from "../lib/data.ts";
-import { imgUrl, posterUrl } from "../lib/img.ts";
+import { imgUrl, posterUrl, ogUrl } from "../lib/img.ts";
+import { monthYear } from "../lib/dates.ts";
 import { all as jsonldFor } from "../lib/jsonld.ts";
 
 export async function getStaticPaths() {
@@ -50,7 +51,7 @@ const crumbs = page.breadcrumbs.length ? [...page.breadcrumbs, { url: page.url, 
 const relatedLinks = page.links.filter((l) => /^\/(services|materials|areas)\//.test(l.url));
 const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/projects\/.+/.test(l.url)).map((l) => ds.projects.find((p) => `/projects/${p.slug}/` === l.url)!).filter(Boolean) : [];
 ---
-<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} ogImage={ogPic ? imgUrl(ogPic.file, 1200) : undefined} showCredentials={page.type !== "home"}>
+<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} ogImage={ogPic ? ogUrl(ogPic.file) : undefined} showCredentials={page.type !== "home"}>
   {crumbs.length > 0 && <nav class="crumbs" aria-label="Breadcrumb">{crumbs.map((c, i) => <span>{i > 0 && " › "}{i < crumbs.length - 1 ? <a href={c.url}>{c.text}</a> : c.text}</span>)}</nav>}
 
   {page.type === "home" && hero && (
@@ -58,7 +59,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
       <Pic file={hero.file} alt={hero.alt} width={hero.width} height={hero.height} sizes="100vw" priority />
       <div class="hero-copy">
         <h1>Roofing and solar on the North Shore, shown one finished job at a time</h1>
-        <p>Metal, cedar, shingle, flat roofs, skylights and solar in West and North Vancouver. Every page on this site comes from a finished job.</p>
+        <p>Metal, cedar, shingle, flat roofs, skylights and solar in West Vancouver. Every page on this site comes from a finished job.</p>
         <p><a class="btn" href="/contact/">Get a free quote</a> <a class="btn call" href={`tel:${ds.business.telephone}`} data-track="click_to_call">Call {phone}</a> <a class="btn ghost" style="background:#fff" href="/projects/">See completed projects</a></p>
       </div>
     </section>
@@ -70,7 +71,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
       <h2>What we do</h2>
       <p>{ds.services.map((s) => <a class="pill" href={`/services/${s.slug}/`}>{s.name}</a>)}</p>
       <h2>Where we work</h2>
-      <p>West Vancouver and North Vancouver. <a href="/areas/">See the areas with completed projects</a>.</p>
+      <p>West Vancouver. <a href="/areas/">See the areas with completed projects</a>.</p>
     </div>
   )}
 
@@ -89,7 +90,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
         {project.manufacturer && <div><dt>Product</dt><dd>{project.manufacturer}</dd></div>}
         {project.squareFeet && <div><dt>Size</dt><dd>{project.squareFeet.toLocaleString("en-CA")} sq ft</dd></div>}
         {project.durationDays && <div><dt>Time on site</dt><dd>{project.durationDays} days</dd></div>}
-        <div><dt>Finished</dt><dd>{project.completedOn}</dd></div>
+        <div><dt>Finished</dt><dd>{monthYear(project.completedOn)}</dd></div>
       </dl>
       <div class={`gallery ${project.photos.length > 1 ? "two" : ""}`}>
         {stagedPhotos.map((ph, i) => <figure><Pic file={ph.file} alt={ph.alt} width={ph.width} height={ph.height} priority={i === 0} sizes="(min-width: 900px) 540px, 100vw" /><figcaption>{ph.stage && <span class={`stage ${ph.stage}`}>{STAGE[ph.stage]}</span>} {ph.caption}</figcaption></figure>)}
@@ -113,14 +114,20 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
   {(page.type === "service" || page.type === "material") && (
     <div class="section"><h1>{page.title}</h1><p>{service?.body ?? material?.summary}</p>
       {projectsHere.length ? <><h2>Jobs we have finished</h2><div class="grid">{projectsHere.map((p) => <Card project={p} neighbourhood={nName(p)} />)}</div></> : <p class="muted">We have no published project in this category yet.</p>}
-      <div class="cta"><h2>Talk to us about {page.title.toLowerCase()}</h2><a class="btn" href="/contact/">Get a free quote</a></div></div>
+      <div class="cta"><h2>Talk to us about {page.title}</h2><a class="btn" href="/contact/">Get a free quote</a></div></div>
   )}
 
   {page.type === "areas-index" && (
     <div class="section"><h1>Areas we serve</h1>
       <p>A neighbourhood gets its own page only when we have finished enough work there to show you. Today that is:</p>
       <p>{page.links.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>
-      {withoutPage.length > 0 && <p class="muted">We also work in {withoutPage.join(", ")}. We will add pages for them when we have finished projects to show.</p>}</div>
+      {withoutPage.length > 0 && <p class="muted">{(() => {
+        const names = withoutPage.map((n) => n);
+        const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+        const shown = ds.projects.filter((p) => p.status === "published").map((p) => nName(p)).filter((n) => withoutPage.includes(n ?? ""));
+        const note = shown.length ? ` ${[...new Set(shown)].join(" and ")} ${shown.length > 1 ? "have" : "has"} a finished job on the projects page, but not yet enough work for an area page.` : "";
+        return `We also work in ${list}. An area gets its own page when we have enough finished projects to show you.${note}`;
+      })()}</p>}</div>
   )}
 
   {page.type === "area" && area && (

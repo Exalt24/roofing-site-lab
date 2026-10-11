@@ -1,8 +1,11 @@
 // Structured data. Only types Google documents, only values that are visible on the page. No FAQ markup (rich results retired 2026-05), no self-review stars.
 import type { Business, Page, Project, Service, Dataset } from "@lab/content";
 import { imgUrl } from "./img.ts";
+import { BUILD_DATE } from "./dates.ts";
 
 const abs = (b: Business, url: string) => new URL(url, b.url).toString();
+// Google reads each page on its own, so a page that names the business names it in full instead of pointing at an @id that is only defined on the home page
+const org = (b: Business) => ({ "@type": "RoofingContractor", name: b.name, url: b.url, telephone: b.telephone });
 
 export function roofingContractor(b: Business) {
   return {
@@ -36,10 +39,10 @@ export function projectArticle(b: Business, p: Project) {
     "@type": "Article",
     headline: p.title,
     description: p.summary,
-    datePublished: p.completedOn,
-    dateModified: p.completedOn,
-    author: { "@id": abs(b, "/#business") },
-    publisher: { "@id": abs(b, "/#business") },
+    datePublished: BUILD_DATE,
+    dateModified: BUILD_DATE,
+    author: org(b),
+    publisher: org(b),
     mainEntityOfPage: abs(b, `/projects/${p.slug}/`),
     image: p.photos.map((ph) => ({ "@type": "ImageObject", contentUrl: imgUrl(ph.file, 1200), caption: ph.caption, creator: { "@type": "Organization", name: b.name }, creditText: b.name, copyrightNotice: `© ${b.name}` })),
   };
@@ -52,7 +55,7 @@ export function videoObjects(b: Business, p: Project) {
     name: v.title,
     description: `${v.title}, part of the project: ${p.title}`,
     thumbnailUrl: v.poster.startsWith("http") ? imgUrl(v.poster, 800) : imgUrl(p.photos.find((x) => x.id === v.poster)?.file ?? "", 800),
-    uploadDate: p.completedOn,
+    uploadDate: BUILD_DATE,
     contentUrl: v.file.startsWith("http") ? v.file : abs(b, `/videos/${v.file}`),
     duration: `PT${v.durationSeconds}S`,
   }));
@@ -64,7 +67,7 @@ export function serviceSchema(b: Business, s: Service) {
     "@type": "Service",
     name: s.name,
     description: s.summary,
-    provider: { "@id": abs(b, "/#business") },
+    provider: org(b),
     areaServed: b.areaServed.map((name) => ({ "@type": "City", name })),
   };
 }

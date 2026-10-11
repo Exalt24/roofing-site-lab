@@ -26,18 +26,18 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 
 | Part | Status |
 |---|---|
-| Content graph and build gates | 17 tests, mutation-checked: removing the reachability, canonical, duplicate-address or 25-word check now fails a named test |
+| Content graph and build gates | 16 tests, mutation-checked, including an entry check that refuses a result written ahead of the calendar (a job finished weeks ago cannot claim two winters): removing the reachability, canonical, duplicate-address or 25-word check now fails a named test |
 | Drafter and validators | 55 tests, a number of them mutation tests written after a reviewer slipped drafts past the first validators (an invented brand at the start of a sentence, spelled-out numbers, duplicated sections). Evaluation on a local model (`qwen3:14b`, with `qwen3.5:9b` describing photos), the final run with the final validators: 13 cases, 11 model calls. 2 adversarial cases that have a customer's details typed into the notes are refused before any model call, which is the intended result. The other 11 all reached "ready for review", all 11 on the first attempt (`packages/drafter/evals/results/`). The model is not deterministic: the run before the validators were tightened gave 8 first-attempt passes and 14 calls, and the very first run (older validators) 10 of 13 and 16 calls, so treat first-attempt counts as a range of 8 to 11 |
 | Draft written into Sanity from an intake | Run end to end against the hosted Studio (`tools/draft_to_sanity.mjs`) for one job; the screens in the clip are that draft |
 | Call tracking receiver, ledger and builders | 44 tests, including a malformed request target (it used to end the process), the retention purge emptying the database FILE, signature, replay, idempotency, reconcile, click-id and phone/email age limits, consent storage, header injection, retention and the runnable server; run against recorded-shape payloads, **not against a live CallRail account**. The nightly CallRail reconcile request follows CallRail's published API reference and has **not** been run against an account |
 | GA4 payloads | Accepted by Google's own validation server (`tools/validate_ga4_payload.mjs`), which also rejects a bad payload, so a clean run means something |
 | Google Ads payloads | Built to the Data Manager API's documented shape; **never sent**, there is no Ads account behind this lab |
 | CallRail number swapping | Built against CallRail's documented behaviour and tested with a **simulator** (`apps/site/public/callrail-sim.js`) that is not CallRail's code and is not deployed with the live site: the `noswap` attribute, the "All Except Direct & Organic" pool, no automatic rescan. 8 tests |
-| Site structure | 8 tests on the built HTML of all 35 pages (including the security headers) and 1 on the rendered form layout (proven by mutation): one H1, no skipped heading levels, skip link, share tags, credentials, JSON-LD parses, honest contact form, 404, and a Tag Manager id with script text in it is ignored. 3 more check image metadata |
+| Site structure | 8 tests on the built HTML of all 35 pages (including the security headers), 5 on what the pages claim (structured data that stands alone, real dates, the areas page, readable dates, the share image) and 1 on the rendered form layout (proven by mutation): one H1, no skipped heading levels, skip link, share tags, credentials, JSON-LD parses, honest contact form, 404, and a Tag Manager id with script text in it is ignored. 3 more check image metadata |
 | Performance budget in CI | `tools/lighthouse_budget.mjs` runs after the build and fails it on accessibility under 100, layout shift over 0.05, blocking time over 200 ms or more than 60 KB of script, on four pages of the fixture build; it was shown to fail on an impossible budget. Performance score and LCP are only checked against a live URL (`--url`), because the fixture build serves full-size sample PNGs from disk |
 | Google Analytics, Tag Manager, Search Console, Bing | **Connected on the live sample, on a test Google account.** A GA4 property and a Tag Manager container: a Google tag plus `click_to_call` and `generate_lead` event tags, exported in `docs/gtm-container.json`. Driven end to end: a visit from a real browser put `page_view`, `click_to_call`, `first_visit` and `session_start` in GA4's Realtime report (headless Chrome is filtered as a bot and shows nothing). `generate_lead` is configured but has not fired, because the sample form is not connected. Search Console is verified by meta tag with the sitemap submitted (it read "Couldn't fetch" right after submission, which is common on a new site). Bing Webmaster Tools is verified by meta tag; its sitemap form returned a server error, so the 34 URLs went in through IndexNow instead (`tools/indexnow.mjs`, accepted with 202). The ids come from `PUBLIC_GTM_ID`, `PUBLIC_GSC_TOKEN` and `PUBLIC_BING_TOKEN` |
 | Hosted site and Studio | Cloudflare Pages (`tools/deploy_pages.mjs`) and a hosted Sanity Studio |
-| Total | 136 tests across four packages |
+| Total | 140 tests across four packages |
 
 Known limits of the drafter: the validators check facts, numbers and names, not meaning. A summary can still say "replacing" when the intake never said anything was replaced. They also work from patterns: they catch an invented brand next to a material word ("Malarkey shingles"), spelled-out numbers, a duplicated section and phone numbers in common formats, but an invented fact phrased in a way no pattern expects can still pass. That is why a person publishes.
 
@@ -83,7 +83,7 @@ Needs Node 22.18 or newer (the tests run TypeScript directly) and, for the site 
 ```sh
 npm install
 npx playwright install chromium
-npm test                      # 136 tests across four packages
+npm test                      # 140 tests across four packages
 npm run build                 # builds from fixtures when no Sanity project id is set
 ```
 

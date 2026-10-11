@@ -98,6 +98,19 @@ export interface Dataset {
 
 export const ROOF_TYPES: RoofType[] = ["metal", "asphalt", "cedar", "composite", "flat", "skylight", "solar"];
 
+/** Claims about how a job has held up are only true once enough time has passed since it finished. Returns each phrase that runs ahead of the calendar, so a result written for a job finished weeks ago cannot say "two winters". */
+export function elapsedClaimProblems(p: Project, today = new Date()): string[] {
+  const months = (today.getTime() - new Date(p.completedOn).getTime()) / (30.44 * 24 * 3600 * 1000);
+  const text = [p.outcome, p.review?.quote ?? ""].join(" ").toLowerCase();
+  const rules: [RegExp, number, string][] = [
+    [/\b(two|2) winters?\b/, 18, "two winters"],
+    [/\b(three|3|several|many) winters?\b/, 30, "several winters"],
+    [/(full|whole|entire|first) winter|through the winter|first (stormy )?season|stormy season|first storm/, 6, "a winter or stormy season"],
+    [/no longer pay|is all the roof needs|never (leaks|leaked)|has not come back|come through its first/, 12, "a lasting result"],
+  ];
+  return rules.filter(([re, need]) => re.test(text) && months < need).map(([, need, label]) => `${p.id}: claims ${label}, which needs at least ${need} months, but the job finished ${months.toFixed(1)} months ago`);
+}
+
 export function validateProject(p: Project, ds: Pick<Dataset, "services" | "materials" | "neighbourhoods">): string[] {
   const errs: string[] = [];
   const need = (cond: boolean, msg: string) => { if (!cond) errs.push(`${p.id}: ${msg}`); };
@@ -113,6 +126,7 @@ export function validateProject(p: Project, ds: Pick<Dataset, "services" | "mate
   for (const m of p.materialSlugs) need(ds.materials.some((x) => x.slug === m), `unknown material ${m}`);
   for (const ph of p.photos) need(ph.alt.trim().length >= 12 && !/^(image|photo|picture) of/i.test(ph.alt), `photo ${ph.id} needs a descriptive alt text`);
   if (p.review) need(p.review.consent === true, "a review needs recorded consent before it can be shown");
+  if (p.status === "published") errs.push(...elapsedClaimProblems(p));
   if (p.status === "published") need(p.photoRelease === true, "a published project needs the homeowner's photo release (BC Privacy Act s.3: using a likeness to promote services needs consent)");
   return errs;
 }

@@ -1,12 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
 import { loadDataset } from "../lib/data.ts";
-import { imgUrl } from "../lib/img.ts";
+import { ogUrl } from "../lib/img.ts";
 const ds = await loadDataset();
 const ogFile = (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0]?.file;
 const name = ds.business.legalName;
 ---
-<Base ogImage={ogFile ? imgUrl(ogFile, 1200) : undefined} title={`Privacy | ${ds.business.name.replace(" (sample)", "")}`} description="What personal information this site collects, why, who handles it, how long it is kept and how to ask for it or have it removed." canonical="/privacy/" business={ds.business}>
+<Base ogImage={ogFile ? ogUrl(ogFile) : undefined} title={`Privacy | ${ds.business.name.replace(" (sample)", "")}`} description="What personal information this site collects, why, who handles it, how long it is kept and how to ask for it or have it removed." canonical="/privacy/" business={ds.business}>
   <div class="section story">
     <h1>Privacy</h1>
     <p class="muted">Sample page, version privacy-2026-10. It follows the headings the BC Information and Privacy Commissioner asks for in a privacy policy under the Personal Information Protection Act. It is a starting point for a lawyer to review, not legal advice.</p>

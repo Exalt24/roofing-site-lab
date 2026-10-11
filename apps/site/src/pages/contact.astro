@@ -1,14 +1,14 @@
 ---
 import Base from "../layouts/Base.astro";
 import { loadDataset } from "../lib/data.ts";
-import { imgUrl } from "../lib/img.ts";
+import { ogUrl } from "../lib/img.ts";
 const ds = await loadDataset();
 const ogFile = (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0]?.file;
 const endpoint = import.meta.env.PUBLIC_LEAD_ENDPOINT ?? "";
 const connected = endpoint !== "";
 const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
 ---
-<Base ogImage={ogFile ? imgUrl(ogFile, 1200) : undefined} title={`Free quote | ${ds.business.name.replace(" (sample)", "")}`} description="Ask for a free roofing quote. Tell us what you are seeing and we will reply the same business day." canonical="/contact/" business={ds.business}>
+<Base ogImage={ogFile ? ogUrl(ogFile) : undefined} title={`Free quote | ${ds.business.name.replace(" (sample)", "")}`} description="Ask for a free roofing quote. Tell us what you are seeing and we will reply the same business day." canonical="/contact/" business={ds.business}>
   <div class="section">
     <h1>Get a free quote</h1>
     <p>Prefer to talk? Call <a href={`tel:${ds.business.telephone}`} data-track="click_to_call">{ds.business.telephone.replace(/^\+1-/, "").replace("-", " ")}</a>.</p>

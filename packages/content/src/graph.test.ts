@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildGraph, checkGraph, swapTest, duplicateGate, validateProject, sampleDataset, MIN_PROJECTS_FOR_AREA_PAGE, type Dataset, type Project } from "./index.ts";
+import { buildGraph, checkGraph, swapTest, duplicateGate, validateProject, elapsedClaimProblems, sampleDataset, MIN_PROJECTS_FOR_AREA_PAGE, type Dataset, type Project } from "./index.ts";
 
 const clone = <T>(x: T): T => structuredClone(x);
 
@@ -98,20 +98,16 @@ test("entry checks refuse a thin project, a lazy alt text and a review without c
   assert.ok(errs.some((e) => /consent/.test(e)));
 });
 
-test("a published project cannot claim a full winter, or a lasting pattern, for a job that is too recent to know", () => {
+test("MUTANT: a result that runs ahead of the calendar is refused by the entry check, and the sample passes it", () => {
   const today = new Date("2026-10-12");
-  for (const p of sampleDataset.projects.filter((x) => x.status === "published")) {
-    const months = (today.getTime() - new Date(p.completedOn).getTime()) / (30.44 * 24 * 3600 * 1000);
-    const text = [p.outcome, p.review?.quote ?? ""].join(" ").toLowerCase();
-    if (/(full|whole|entire) winter|through the winter/.test(text)) assert.ok(months >= 6, `${p.id} claims a winter but finished ${months.toFixed(1)} months ago`);
-    if (/no longer pay|is all the roof needs|never (leaks|leaked)/.test(text)) assert.fail(`${p.id} states a long-run result the job is too young to show`);
-  }
-});
-
-test("MUTANT: the same check does fail on a recent job that claims a full winter", () => {
-  const p = clone(sampleDataset.projects[0]); p.completedOn = "2026-10-01"; p.outcome = "Dry through a full winter.";
-  const months = (new Date("2026-10-12").getTime() - new Date(p.completedOn).getTime()) / (30.44 * 24 * 3600 * 1000);
-  assert.ok(/full winter/.test(p.outcome.toLowerCase()) && months < 6);
+  for (const p of sampleDataset.projects.filter((x) => x.status === "published")) assert.deepEqual(elapsedClaimProblems(p, today), [], p.id);
+  const young = clone(sampleDataset.projects[0]); young.completedOn = "2026-09-19"; young.outcome = "The roof has come through its first stormy season with no lifted tiles.";
+  assert.match(elapsedClaimProblems(young, today).join(" | "), /winter or stormy season/);
+  const eightMonths = clone(sampleDataset.projects[0]); eightMonths.completedOn = "2026-01-22"; eightMonths.outcome = "The ceiling has stayed dry through two winters of wind-driven rain.";
+  assert.match(elapsedClaimProblems(eightMonths, today).join(" | "), /two winters/);
+  const review = clone(sampleDataset.projects[0]); review.completedOn = "2026-08-14"; review.review = { quote: "The stain has not come back.", author: "A. B.", consent: true };
+  assert.match(elapsedClaimProblems(review, today).join(" | "), /lasting result/);
+  assert.match(validateProject({ ...young, status: "published" }, sampleDataset).join(" | "), /stormy season/);
 });
 
 test("MUTANT: a pair of pages that only link to each other is unreachable from home even though neither is an orphan", () => {
