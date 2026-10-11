@@ -93,13 +93,14 @@ export function createReceiver(o: ReceiverOptions): Server {
         const f = (k: string) => String(form.get(k) ?? "").trim();
         const line = (k: string, n: number) => cleanLine(f(k), n);
         if (f("website")) return json(res, 200, { ok: true }, origin); // honeypot: bots get a success and nothing is stored
-        if (o.turnstileVerify && !(await o.turnstileVerify(f("cf-turnstile-response"), ip))) return json(res, 400, { error: "spam check failed" }, origin);
         const name = line("name", 100); const message = f("message"); const email = line("email", 254);
         const phone = toE164(f("phone"));
         if (name.length < 2) return json(res, 400, { error: "please enter your name" }, origin);
         if (!phone) return json(res, 400, { error: "please enter a phone number we can call" }, origin);
         if (!message || message.length > 2000) return json(res, 400, { error: "please tell us what is going on with the roof (up to 2000 characters)" }, origin);
         if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "that email address does not look right" }, origin);
+        // The spam check runs AFTER the field checks: Cloudflare accepts a Turnstile token once, so a visitor who mistypes the phone must not burn their token on a request that was never going to be stored.
+        if (o.turnstileVerify && !(await o.turnstileVerify(f("cf-turnstile-response"), ip))) return json(res, 400, { error: "spam check failed" }, origin);
         // The ad-measurement details (landing page, campaign, ad click id, click time, Google Analytics visitor id) are kept only when the visitor ticked the separate, unticked-by-default measurement box.
         // Without it the lead is stored with what they typed and nothing else, and it can never reach the Google conversion uploads.
         const measure = f("measurement_opt_in") === "yes";
@@ -113,7 +114,8 @@ export function createReceiver(o: ReceiverOptions): Server {
         const ids = badClick ? ({} as ReturnType<typeof clickIds>) : clickIds(landing);
         const m = (k: string, n: number) => (measure ? line(k, n) : "");
         const ev: LeadEvent = {
-          kind: "form", sourceEventId: `site-${UUID.test(f("submission_id")) ? f("submission_id").toLowerCase() : o.ledger.newSubmissionId()}`, occurredAt: now().toISOString(), phoneE164: phone, email: email || null, name,
+          kind: "form", sourceEventId: `site-${UUID.test(f("submission_id")) ? f("submission_id").toLowerCase() : o.ledger.newSubmissionId()}`, occurredAt: now().toISOString(), phoneE164: phone, email: measure && email ? email : null, // the email goes to the owner in the notification; a scrambled copy is kept in the ledger only for a person who agreed to ad measurement
+          name,
           landingPageUrl: landing || null, source: ids.utm_source ?? null, medium: ids.utm_medium ?? null, campaign: ids.utm_campaign ?? null,
           utm: { source: m("utm_source", 100) || ids.utm_source, medium: m("utm_medium", 100) || ids.utm_medium, campaign: m("utm_campaign", 200) || ids.utm_campaign },
           gclid: badClick ? undefined : m("gclid", 200) || ids.gclid, wbraid: badClick ? undefined : m("wbraid", 200) || ids.wbraid, gbraid: badClick ? undefined : m("gbraid", 200) || ids.gbraid, gaClientId: m("ga_client_id", 60) || undefined,

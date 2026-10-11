@@ -33,6 +33,13 @@ test("the correct draft still passes after the stricter checks (no false alarm o
   assert.deepEqual(run(clone(goodDraft)).errors, []);
 });
 
+test("MUTANT: a two-letter surname typed in the notes refuses the intake, and a draft repeating it fails", () => {
+  const i = clone(goodIntake); i.private.customerName = "Li Wu"; i.staffNotes = "Li Wu called twice about the leak. Wu is the owner.";
+  assert.match(inputPrivacyProblems(i).join(" | "), /"Wu" \(a customer detail\)/);
+  const d = clone(goodDraft); d.sections[0].body += " Li Wu was thrilled with the result.";
+  assert.match(run(d, i).errors.join(" | "), /private customer detail "(Li|Wu)"/);
+});
+
 test("MUTANT: the intake screen reaches the colour, manufacturer, roof type and photo description boxes, and brackets-and-spaces phone numbers", () => {
   const withColour = clone(goodIntake); withColour.colour = "Marguerite Tallow green";
   assert.match(inputPrivacyProblems(withColour).join(" | "), /colour box/);

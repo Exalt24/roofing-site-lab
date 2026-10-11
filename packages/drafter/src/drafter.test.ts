@@ -101,6 +101,15 @@ test("MUTANT: the draft-only guard refuses a document that is not in the drafts 
   assert.doesNotThrow(() => assertAllDrafts([{ _id: "drafts.ok" }]));
 });
 
+test("MUTANT: a malformed best-effort draft is kept in the aiRun record and writing it does not crash or build a project document", async () => {
+  for (const wrong of [{ title: "x" }, { ...structuredClone(goodDraft), sections: "oops" }, { ...structuredClone(goodDraft), photos: null }, { ...structuredClone(goodDraft), photos: [null] }]) {
+    const r = await draftProject(goodIntake, ctx, { llm: async () => wrong as never, model: "stub", maxAttempts: 1 });
+    assert.equal(r.status, "needs_human");
+    const docs = buildDocs(r, goodIntake, {});
+    assert.deepEqual(docs.map((d) => d._type), ["aiRun"]);
+  }
+});
+
 test("MUTANT: a draft that failed the checks is written with NEEDS A PERSON at the front of its title, a clean one is not", async () => {
   const okRun = await draftProject(goodIntake, ctx, { llm: async () => structuredClone(goodDraft), model: "stub" });
   const failRun = await draftProject(goodIntake, ctx, { llm: async () => bad(), model: "stub", maxAttempts: 1 });

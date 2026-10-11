@@ -27,7 +27,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <label>Neighbourhood or city (optional)<input name="area" autocomplete="address-level2" /></label>
       <label>What is going on with the roof? *<textarea name="message" rows="4" required></textarea></label>
       <label class="check"><input type="checkbox" name="marketing_opt_in" value="yes" /> Email me occasional roofing tips and offers from {ds.business.legalName}, {ds.business.streetAddress}, {ds.business.city} {ds.business.region} {ds.business.postalCode}, {ds.business.email}. This is optional. You can withdraw your consent at any time with the unsubscribe link in every email.</label>
-      <label class="check"><input type="checkbox" name="measurement_opt_in" value="yes" /> Let {ds.business.name.replace(" (sample)", "")} measure its advertising with my request: keep the page I arrived on, the advertisement I clicked and a random Google Analytics visitor number with it, and, if an estimate is booked or this turns into a job, send Google a scrambled (hashed) copy of my phone number and email. This is optional and does not affect my quote.</label>
+      <label class="check"><input type="checkbox" name="measurement_opt_in" value="yes" /> Let {ds.business.name.replace(" (sample)", "")} measure its advertising with my request: keep the page I arrived on, the advertisement I clicked and a random Google Analytics visitor number with it, and, if an estimate is booked or this turns into a job, send Google the click, the job value and a scrambled (hashed) copy of my phone number and email. This is optional and does not affect my quote.</label>
       <input type="hidden" name="consent_text_version" value="privacy-2026-10-2" />
       <input type="hidden" name="submission_id" value="" />
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></div>
@@ -42,7 +42,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <input type="hidden" name="ga_client_id" value="" />
       {turnstile && <div class="cf-turnstile" data-sitekey={turnstile}></div>}
       {turnstile && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
-      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, and we keep them for 24 months. The advertising box above is separate and optional. See our <a href="/privacy/">privacy page</a>.</p>
+      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, We keep your phone number and a scrambled form of your email in our records for 24 months; your name and message reach us as a notification that we keep only as long as we need it to follow up your quote. The advertising box above is separate and optional. See our <a href="/privacy/">privacy page</a>.</p>
       <button class="btn" type="submit" disabled={!connected}>{connected ? "Send" : "Not connected in this sample"}</button>
       <p class="muted small-print" id="lead-status" role="status"></p>
     </form>
@@ -51,6 +51,8 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
     (function () {
       var f = document.getElementById("lead-form");
       var q = new URLSearchParams(location.search);
+      // this script runs before the layout script, so a NEW ad click arriving on this very page must reset the stored click here too (same rule as the layout script), or it would be paired with the old click time and landing page
+      try { var S = sessionStorage, K = ["gclid", "wbraid", "gbraid"], fresh = false; K.forEach(function (k) { var v = q.get(k); if (v && S.getItem("lab_" + k) !== v) fresh = true; }); if (fresh) { K.concat(["utm_source", "utm_medium", "utm_campaign"]).forEach(function (k) { S.removeItem("lab_" + k); }); S.setItem("lab_click_time", new Date().toISOString()); S.setItem("lab_landing", location.href); } } catch (e) {}
       ["gclid", "wbraid", "gbraid", "utm_source", "utm_medium", "utm_campaign"].forEach(function (k) { if (q.get(k)) { f.elements[k].value = q.get(k); try { sessionStorage.setItem("lab_" + k, q.get(k)); } catch (e) {} } else { try { f.elements[k].value = sessionStorage.getItem("lab_" + k) || ""; } catch (e) {} } });
       try { f.elements["landing_page"].value = sessionStorage.getItem("lab_landing") || location.href; } catch (e) { f.elements["landing_page"].value = location.href; } // the page the visitor FIRST landed on, which the layout script recorded
       // when the visitor first arrived from an ad (the first time a click id is seen in this tab), so the 90 and 63 day limits can count from the click and not from the later form

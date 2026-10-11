@@ -45,7 +45,7 @@ const crumbs = page.breadcrumbs.length ? [...page.breadcrumbs, { url: page.url, 
 const relatedLinks = page.links.filter((l) => /^\/(services|materials|areas)\//.test(l.url));
 const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/projects\/.+/.test(l.url)).map((l) => ds.projects.find((p) => `/projects/${p.slug}/` === l.url)!).filter(Boolean) : [];
 ---
-<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} preloadSrcset={hero ? srcset(hero.file) : undefined} preloadSizes={page.type === "home" ? "100vw" : "(min-width: 900px) 540px, 100vw"} ogImage={ogPic ? ogUrl(ogPic.file) : undefined} showCredentials={page.type !== "home"}>
+<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} preloadSrcset={hero ? srcset(hero.file) : undefined} preloadSizes={page.type === "home" ? "100vw" : project && project.photos.length === 1 ? "(min-width: 1100px) 1068px, 100vw" : "(min-width: 900px) 540px, 100vw"} ogImage={ogPic ? ogUrl(ogPic.file) : undefined} showCredentials={page.type !== "home"}>
   {crumbs.length > 0 && <nav class="crumbs" aria-label="Breadcrumb">{crumbs.map((c, i) => <span>{i > 0 && " › "}{i < crumbs.length - 1 ? <a href={c.url}>{c.text}</a> : c.text}</span>)}</nav>}
 
   {page.type === "home" && hero && (
@@ -87,7 +87,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
         <div><dt>Finished</dt><dd>{monthYear(project.completedOn)}</dd></div>
       </dl>
       <div class={`gallery ${project.photos.length > 1 ? "two" : ""}`}>
-        {stagedPhotos.map((ph, i) => <figure><Pic file={ph.file} alt={ph.alt} width={ph.width} height={ph.height} priority={i === 0} sizes="(min-width: 900px) 540px, 100vw" /><figcaption>{ph.stage && <span class={`stage ${ph.stage}`}>{STAGE[ph.stage]}</span>} {ph.caption}</figcaption></figure>)}
+        {stagedPhotos.map((ph, i) => <figure><Pic file={ph.file} alt={ph.alt} width={ph.width} height={ph.height} priority={i === 0} sizes={project.photos.length > 1 ? "(min-width: 900px) 540px, 100vw" : "(min-width: 1100px) 1068px, 100vw"} /><figcaption>{ph.stage && <span class={`stage ${ph.stage}`}>{STAGE[ph.stage]}</span>} {ph.caption}</figcaption></figure>)}
       </div>
       {project.videos.map((v) => <figure><video controls preload="none" poster={posterUrl(v.poster, project.photos)} width="1280" height="720"><source src={v.file.startsWith("http") ? v.file : `/videos/${v.file}`} type="video/mp4" /></video><figcaption class="muted">{v.title} ({v.durationSeconds} seconds)</figcaption></figure>)}
       {project.existingConditions && <><h2>What the roof was like</h2><p>{project.existingConditions}</p></>}

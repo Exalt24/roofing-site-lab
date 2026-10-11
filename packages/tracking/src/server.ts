@@ -76,6 +76,7 @@ export async function startServer(env: Record<string, string | undefined>, log: 
     setInterval(safe("reconcile", reconcile), 24 * 3600 * 1000),
   ];
   for (const t of timers) t.unref();
+  if (!env.ALLOW_ORIGIN) log("ALLOW_ORIGIN is not set: a quote form served from a different address than this receiver will store the lead but the visitor will see an error; set it to the site address");
   try { purge(); } catch (e) { log(`retention error: ${(e as Error).message}`); }
   safe("reconcile", reconcile)(); // at start-up too, so a server that restarts more often than daily still catches up
   return { server, ledger, jobs: { drain, purge, reconcile }, stop: () => new Promise<void>((resolve) => { for (const t of timers) clearInterval(t); server.closeAllConnections(); server.close(() => resolve()); }) };

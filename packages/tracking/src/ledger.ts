@@ -58,7 +58,7 @@ export class Ledger {
 
   /** Idempotent: a re-delivered or reconciled event never creates a second row. */
   insert(e: LeadEvent, now = new Date()): { inserted: boolean; id: number } {
-    // The same call can arrive under two ids: CallRail documents that its API accepts the old numeric webhook id and lists the call as "CAL..." (and that webhooks now carry that as resource_id), but a
+    // The same call can arrive under two ids: CallRail's payloads can carry a numeric id and a "CAL..." resource_id and its public pages do not confirm that a given webhook sends one or that the two always describe the same call, so a
     // payload that carries only the numeric id still exists. So, as a fallback after the exact id, a call from the same caller number (and the same tracking number when both are known) that started
     // within one second of a stored call is treated as the same call.
     if (e.kind === "call" && e.phoneE164) {
@@ -96,9 +96,16 @@ export class Ledger {
     if (!row) return false;
     let raw: Record<string, unknown> = {};
     try { raw = JSON.parse(row.raw_json) as Record<string, unknown>; } catch { raw = {}; }
-    for (const k of ["landing_page", "landing_page_url", "referrer", "referring_url", "utm_source", "utm_medium", "utm_campaign"]) delete raw[k];
-    this.db.prepare(`UPDATE leads SET measurement_opt_in = 0, gclid = NULL, wbraid = NULL, gbraid = NULL, msclkid = NULL, ga_client_id = NULL, landing_page_url = NULL,
+    for (const k of ["landing_page", "landing_page_url", "referrer", "referring_url", "utm_source", "utm_medium", "utm_campaign", "source", "medium", "campaign", "keywords", "device_type"]) delete raw[k];
+    this.db.prepare(`UPDATE leads SET measurement_opt_in = 0, gclid = NULL, wbraid = NULL, gbraid = NULL, msclkid = NULL, ga_client_id = NULL, landing_page_url = NULL, email_sha256 = NULL,
       source = NULL, medium = NULL, campaign = NULL, utm_source = NULL, utm_medium = NULL, utm_campaign = NULL, click_at = NULL, raw_json = ? WHERE id = ?`).run(JSON.stringify(raw), id);
+    // an unsent notification names the page the visitor arrived on: take that line out of any message still waiting
+    for (const o of this.db.prepare("SELECT id, payload FROM outbox WHERE lead_id = ? AND sent_at IS NULL").all(id) as { id: number; payload: string }[]) {
+      try {
+        const p = JSON.parse(o.payload) as { text?: string };
+        if (typeof p.text === "string") { p.text = p.text.split(/\r?\n/).filter((l) => !l.startsWith("Page: ")).join("\n").trimEnd(); this.db.prepare("UPDATE outbox SET payload = ? WHERE id = ?").run(JSON.stringify(p), o.id); }
+      } catch { /* a payload that is not JSON has nothing to take out */ }
+    }
     this.scrub();
     return true;
   }

@@ -27,9 +27,9 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 | Part | Status |
 |---|---|
 | Content graph and build gates | 16 tests (and 6 more on the build refusing a bad site), mutation-checked, including an entry check that refuses a result written ahead of the calendar (a job finished weeks ago cannot claim two winters): removing the reachability, canonical, duplicate-address or 25-word check now fails a named test |
-| Drafter and validators | 73 tests, many of them mutation tests written after two reviewers slipped drafts past the validators (an invented brand or person at the start of a sentence, a wrong roof material, spelled-out numbers, web addresses and markup, malformed model output that used to crash a run). Evaluation on a local model (`qwen3:14b`, with `qwen3.5:9b` describing photos), final run with the final validators: 13 made-up jobs, 15 model calls. One job has a customer's details typed into the notes and is refused before any model call, which is the intended result. The other 12 went to the model, including one with instructions hidden in the notes (a lifetime guarantee, a web address, a canary string): 11 reached "ready for review", 10 of them on the first attempt, and one stayed with a person after three attempts (a material word first, then an invented number and a too-short SEO description) (`packages/drafter/evals/results/`). The model is not deterministic: earlier runs of the same jobs gave 8 to 11 first-attempt passes, so treat that count as a range |
+| Drafter and validators | 75 tests, many of them mutation tests written after two reviewers slipped drafts past the validators (an invented brand or person at the start of a sentence, a wrong roof material, spelled-out numbers, web addresses and markup, malformed model output that used to crash a run). Evaluation on a local model (`qwen3:14b`, with `qwen3.5:9b` describing photos), final run with the final validators: 13 made-up jobs, 15 model calls. One job has a customer's details typed into the notes and is refused before any model call, which is the intended result. The other 12 went to the model, including one with instructions hidden in the notes (a lifetime guarantee, a web address, a canary string): 11 reached "ready for review", 10 of them on the first attempt, and one stayed with a person after three attempts (a material word first, then an invented number and a too-short SEO description) (`packages/drafter/evals/results/`). The model is not deterministic: earlier runs of the same jobs gave 8 to 11 first-attempt passes, so treat that count as a range |
 | Draft written into Sanity from an intake | Run end to end against the hosted Studio (`tools/draft_to_sanity.mjs`) for one job; the screens in the clip are that draft |
-| Call tracking receiver, ledger and builders | 62 tests, including the ad-measurement box (without it the click id, landing page and Google visitor id are not stored and no Google upload can be built), a malformed request target (it used to end the process), the retention purge emptying the database FILE, signature, replay, idempotency, reconcile, click-id and phone/email age limits, consent storage, header injection, retention and the runnable server; run against recorded-shape payloads, **not against a live CallRail account**. The nightly CallRail reconcile request follows CallRail's published API reference and has **not** been run against an account |
+| Call tracking receiver, ledger and builders | 66 tests, including the ad-measurement box (without it the click id, landing page and Google visitor id are not stored and no Google upload can be built), a malformed request target (it used to end the process), the retention purge emptying the database FILE, signature, replay, idempotency, reconcile, click-id and phone/email age limits, consent storage, header injection, retention and the runnable server; run against recorded-shape payloads, **not against a live CallRail account**. The nightly CallRail reconcile request follows CallRail's published API reference and has **not** been run against an account |
 | GA4 payloads | Accepted by Google's own validation server (`tools/validate_ga4_payload.mjs`), which also rejects a bad payload, so a clean run means something |
 | Google Ads payloads | Built to the Data Manager API's documented shape; **never sent**, there is no Ads account behind this lab |
 | CallRail number swapping | Built against CallRail's documented behaviour and tested with a **simulator** (`apps/site/public/callrail-sim.js`) that is not CallRail's code and is not deployed with the live site: the `noswap` attribute, the "All Except Direct & Organic" pool, no automatic rescan. 8 tests |
@@ -37,7 +37,7 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 | Performance budget in CI | `tools/lighthouse_budget.mjs` runs after the build and fails it on accessibility under 100, layout shift over 0.05, blocking time over 200 ms or more than 60 KB of script, on four pages of the fixture build; it was shown to fail on an impossible budget. Performance score and LCP are only checked against a live URL (`--url`), because the fixture build serves full-size sample PNGs from disk |
 | Google Analytics, Tag Manager, Search Console, Bing | **Connected on the live sample, on a test Google account.** A GA4 property and a Tag Manager container: a Google tag plus `click_to_call` and `generate_lead` event tags, exported in `docs/gtm-container.json`. Driven end to end: a visit from a real browser put `page_view`, `click_to_call`, `first_visit` and `session_start` in GA4's Realtime report (headless Chrome is filtered as a bot and shows nothing). `generate_lead` is configured but has not fired, because the sample form is not connected. Search Console is verified by meta tag with the sitemap submitted (it read "Couldn't fetch" right after submission, which is common on a new site). Bing Webmaster Tools is verified by meta tag; its sitemap form returned a server error, so the 34 URLs went in through IndexNow instead (`tools/indexnow.mjs`, accepted with 202). The ids come from `PUBLIC_GTM_ID`, `PUBLIC_GSC_TOKEN` and `PUBLIC_BING_TOKEN` |
 | Hosted site and Studio | Cloudflare Pages (`tools/deploy_pages.mjs`) and a hosted Sanity Studio |
-| Total | 189 tests across four packages |
+| Total | 196 tests across four packages |
 
 Known limits of the drafter: the validators check facts, numbers and names, not meaning. A summary can still say "replacing" when the intake never said anything was replaced. They also work from patterns: they catch an invented brand next to a material word ("Malarkey shingles"), spelled-out numbers, a duplicated section and phone numbers in common formats, but an invented fact phrased in a way no pattern expects can still pass. That is why a person publishes.
 
@@ -76,6 +76,10 @@ My arithmetic from the vendors' published pricing, read 2026-10-12, for about 3,
 
 What bites first on the free tiers: Cloudflare's 500 builds a month counts builds Cloudflare runs from a connected Git repository (this repo deploys by direct upload, which it does not count), so it only matters if every publish is wired to a Git-connected rebuild; so batch publishes into one build every few minutes, and never poll CallRail's API when webhooks and one nightly reconcile will do.
 
+## The sample's live content
+
+The live site is built from the Sanity project, not from the fixture file. Changing `packages/content/src/sample.ts` changes the tests and the fixture build only; to change the live sample run `node --experimental-strip-types tools/seed_sanity.mjs` and then the deploy (both need the Sanity and Cloudflare settings).
+
 ## Run it
 
 Needs Node 22.18 or newer (the tests run TypeScript directly; the suite was run on 22.18.0 and on 24.18.0) and, for the site tests, a Chromium for Playwright.
@@ -83,12 +87,12 @@ Needs Node 22.18 or newer (the tests run TypeScript directly; the suite was run 
 ```sh
 npm install
 npx playwright install chromium
-npm test                      # 189 tests across four packages
+npm test                      # 196 tests across four packages
 npm run build                 # builds from fixtures when no Sanity project id is set
 node tools/lighthouse_budget.mjs   # the performance budget CI runs after the build (about 40 seconds)
 ```
 
-GitHub Actions runs the same commands on every push.
+GitHub Actions runs the same commands on every push to main and on every pull request.
 
 Optional pieces, none needed for the commands above:
 

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { sign, verifySignature, toE164, clickIds, parseCall, parseForm, Ledger, createReceiver, drainOutbox, sha256, ga4Payload, adsIngestEvent, adsIngestRequest, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
+import { sign, verifySignature, toE164, gaClientIdFrom, clickIds, parseCall, parseForm, Ledger, createReceiver, drainOutbox, sha256, ga4Payload, adsIngestEvent, adsIngestRequest, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
 
 const KEY = "test-signing-key-not-a-secret";
 const callBody = (id: number, extra: object = {}) => JSON.stringify({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: new Date(Date.parse("2026-10-05T21:03:00Z") + (Number(String(id).replace(/[^0-9]/g, "")) % 5000 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0)) * 60000).toISOString(), source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
@@ -104,6 +104,7 @@ test("MUTANT: without the separate measurement box a form is stored with what th
   assert.equal(row.measurement_opt_in, 0);
   for (const k of ["gclid", "wbraid", "gbraid", "ga_client_id", "landing_page_url", "utm_source", "utm_campaign", "click_at"] as const) assert.equal(row[k], null, k);
   assert.equal(row.phone_e164, "+16045550188");
+  assert.equal(row.email_sha256, null, "without the box not even a scrambled email is kept");
   const out = JSON.parse((t.ledger.db.prepare("SELECT payload FROM outbox").get() as { payload: string }).payload);
   assert.equal(out.text.includes("Page:"), false);
   assert.equal(adsIngestEvent(row, { stage: "sold", value: 100 }).event, null);
@@ -116,14 +117,25 @@ test("MUTANT: withdrawing the advertising box deletes the click details, visitor
   const t = await boot();
   await fetch(t.base + "/api/lead", { method: "POST", body: formData({ gclid: "GG-WITHDRAW", click_time: new Date().toISOString(), utm_source: "google" }) });
   const before = t.ledger.all()[0];
-  assert.equal(before.gclid, "GG-WITHDRAW"); assert.equal(before.measurement_opt_in, 1); assert.match(before.raw_json, /landing_page/);
+  assert.equal(before.gclid, "GG-WITHDRAW"); assert.equal(before.measurement_opt_in, 1); assert.equal(before.email_sha256?.length, 64);
+  const t0 = new Date(Date.now() + 1000);
+  const built = adsIngestEvent(before, { stage: "sold", value: 5, at: t0, uploadAt: new Date(t0.getTime() + 1000) });
+  assert.ok(built.event?.userData?.userIdentifiers.some((u) => "emailAddress" in u && u.emailAddress === before.email_sha256), "the stored hash is what goes up");
+  assert.equal(adsIngestEvent(before, { stage: "sold", value: 5, at: new Date(t0.getTime() + 5000), uploadAt: t0 }).event, null, "a conversion dated after the upload is refused"); assert.match(before.raw_json, /landing_page/);
   assert.equal(t.ledger.withdrawMeasurement(before.id), true);
   const after = t.ledger.get(before.id)!;
   for (const k of ["gclid", "wbraid", "gbraid", "ga_client_id", "landing_page_url", "utm_source", "utm_campaign", "click_at"] as const) assert.equal(after[k], null, k);
-  assert.equal(after.measurement_opt_in, 0);
+  assert.equal(after.measurement_opt_in, 0); assert.equal(after.email_sha256, null);
   assert.equal(/landing_page|GG-WITHDRAW/.test(after.raw_json), false, "the stored raw copy is cleaned too");
   assert.equal(after.phone_e164, before.phone_e164, "what they typed for the quote stays");
   assert.equal(adsIngestEvent(after, { stage: "sold", value: 1 }).event, null);
+  const waiting = JSON.parse((t.ledger.db.prepare("SELECT payload FROM outbox WHERE lead_id = ? AND sent_at IS NULL").get(before.id) as { payload: string }).payload);
+  assert.equal(/Page:/.test(waiting.text), false, "the unsent notification no longer names the landing page");
+  assert.match(waiting.text, /Ana Souza/, "the rest of the notification is intact");
+  const { id: cid } = t.ledger.insert({ ...parseForm({ id: 77, form_data: { name: "Bo", phone: "604-555-0166" }, landing_page_url: "https://x.example/?gclid=G77", source: "google", medium: "cpc", campaign: "CampX", keywords: "kw secret", submitted_at: "2026-10-05T10:00:00Z" }), measurementOptIn: true });
+  assert.match(t.ledger.get(cid)!.raw_json, /CampX/);
+  assert.equal(t.ledger.withdrawMeasurement(cid), true);
+  assert.equal(/CampX|kw secret|google/.test(t.ledger.get(cid)!.raw_json), false, "campaign data in the raw copy of a CallRail form lead is gone too");
   assert.equal(t.ledger.withdrawMeasurement(99999), false);
   const { id: callId } = t.ledger.insert(parseCall({ id: "CALW1", customer_phone_number: "+16045550123", start_time: new Date().toISOString() }));
   assert.equal(t.ledger.withdrawMeasurement(callId), false);
@@ -165,6 +177,38 @@ test("MUTANT: the owner notification names the page without its query string, so
   const row = t.ledger.all().find((r) => r.phone_e164 === "+16045550199")!;
   assert.equal(row.gclid, null, "a click id with a future click time is dropped");
   assert.equal(row.measurement_opt_in, 1);
+  await t.close();
+});
+
+test("MUTANT: reconcile does not store a call the business dialled as a lead, only inbound calls", async () => {
+  const l = new Ledger();
+  const rep = await reconcileCalls(l, async () => [
+    { id: "CALOUT1", direction: "outbound", customer_phone_number: "+16045559999", start_time: "2026-10-05T10:00:00Z" },
+    { id: "CALIN1", direction: "inbound", customer_phone_number: "+16045558888", start_time: "2026-10-05T11:00:00Z" },
+    { id: "CALNODIR", customer_phone_number: "+16045557777", start_time: "2026-10-05T12:00:00Z" },
+  ], "2026-10-01T00:00:00Z");
+  assert.equal(rep.skippedOutbound, 1); assert.equal(rep.missing, 2); assert.equal(l.count("call"), 2);
+});
+
+test("MUTANT: a phone number that cannot exist is not stored or hashed, and a call's Google cookie loses its GA1.1 prefix", () => {
+  for (const bad of ["+1604555014", "123-456-7890", "0045550142", "604-155-0142", "+1 (604) 055-0142"]) assert.equal(toE164(bad), null, bad);
+  assert.equal(toE164("(604) 555-0188"), "+16045550188"); assert.equal(toE164("+44 20 7946 0958"), "+442079460958");
+  assert.equal(gaClientIdFrom("GA1.1.123456789.1700000000"), "123456789.1700000000");
+  assert.equal(gaClientIdFrom("123456789.1700000000"), "123456789.1700000000");
+  assert.equal(parseCall({ id: "CALGA", customer_phone_number: "+16045550123", start_time: "2026-10-05T10:00:00Z", custom: { _ga: "GA1.1.55.66" } }).gaClientId, "55.66");
+});
+
+test("MUTANT: only the exact word yes counts as a tick, a message over 2000 characters is refused, a click older than 90 days drops the click ids, and the Ads request says HEX", async () => {
+  const t = await boot();
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "h1", marketing_opt_in: "true", phone: "604-555-0101" }) });
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "h2", phone: "604-555-0102", click_time: new Date(Date.now() - 100 * 86400000).toISOString() }) });
+  const by = (p: string) => t.ledger.all().find((r) => r.phone_e164 === p)!;
+  assert.equal(by("+16045550101").marketing_opt_in, 0, "only yes counts");
+  assert.equal(by("+16045550102").gclid, null, "a 100 day old click is dropped");
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "h3", phone: "604-555-0103", message: "x".repeat(2001) }) })).status, 400);
+  const row = t.ledger.all()[0];
+  assert.equal(adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [], { consent: true }).encoding, "HEX");
+  void row;
   await t.close();
 });
 
@@ -216,6 +260,16 @@ test("the honeypot gets a success and nothing is stored; bad input gets a clear 
     assert.equal(r.status, 400, JSON.stringify(bad));
   }
   assert.equal(t.ledger.count(), 0);
+  await t.close();
+});
+
+test("MUTANT: a mistyped form does not use up its Turnstile token (Cloudflare accepts a token once), so the corrected resend with the same token is accepted", async () => {
+  const used = new Set<string>();
+  const t = await boot({ turnstileVerify: async (token) => { if (used.has(token)) return false; used.add(token); return token !== ""; } });
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ "cf-turnstile-response": "T1", phone: "123" }) })).status, 400);
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ "cf-turnstile-response": "T1" }) })).status, 200);
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ "cf-turnstile-response": "T1", submission_id: "zz" }) })).status, 400, "a token still cannot be used twice for stored requests");
+  assert.equal(t.ledger.count(), 1);
   await t.close();
 });
 

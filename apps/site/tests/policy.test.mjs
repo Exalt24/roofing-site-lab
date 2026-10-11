@@ -75,6 +75,22 @@ test("required fields are marked", () => {
   assert.match(contact, /Phone \*/);
 });
 
+test("MUTANT: a new ad click that lands directly on the contact page replaces the earlier click's campaign, landing page and click time instead of mixing with them", async () => {
+  const page = await browser.newPage();
+  await page.goto(BASE + "/projects/ambleside-standing-seam-hillside/?gclid=FIRST&utm_source=google&utm_campaign=one", { waitUntil: "load" });
+  const t1 = await page.evaluate(() => sessionStorage.getItem("lab_click_time"));
+  await new Promise((r) => setTimeout(r, 30));
+  const second = BASE + "/contact/?gclid=SECOND&utm_campaign=two";
+  await page.goto(second, { waitUntil: "load" });
+  const v = (n) => page.locator(`#lead-form [name=${n}]`).inputValue();
+  assert.equal(await v("gclid"), "SECOND");
+  assert.equal(await v("utm_campaign"), "two");
+  assert.equal(await v("utm_source"), "", "the first click's source is gone");
+  assert.equal(await v("landing_page"), second, "the landing page is the new click's page");
+  assert.notEqual(await v("click_time"), t1, "the click time is the new click's");
+  await page.close();
+});
+
 test("a second, different ad click in the same tab replaces the first one's click id, campaign, landing page and click time", async () => {
   const page = await browser.newPage();
   const first = BASE + "/projects/ambleside-standing-seam-hillside/?gclid=FIRST&utm_campaign=one";

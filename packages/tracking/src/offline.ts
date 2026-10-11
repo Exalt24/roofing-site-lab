@@ -78,12 +78,14 @@ export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value
   if (Number.isNaN(click)) return { event: null, note: "the stored click time is not a valid date, so the click age cannot be checked" };
   if (Number.isNaN(at.getTime()) || Number.isNaN(uploadAt.getTime())) return { event: null, note: "the conversion or upload time is not a valid date" };
   if (!Number.isFinite(opts.value) || opts.value < 0) return { event: null, note: "the value must be a number of zero or more" };
+  if (at.getTime() > uploadAt.getTime()) return { event: null, note: "the conversion is dated after the upload time, which Google rejects" };
   if (at.getTime() < click) return { event: null, note: "the conversion is dated before the click, which Google rejects" };
   const age = clickAgeDays(lead, uploadAt);
   if (age < 0) return { event: null, note: "the upload time is before the click" };
   const hasClickId = !!(lead.gclid || lead.gbraid || lead.wbraid);
   const identifiers: ({ emailAddress: string } | { phoneNumber: string })[] = [];
   if (opts.email) identifiers.push({ emailAddress: sha256(normaliseEmail(opts.email)) });
+  else if (lead.email_sha256) identifiers.push({ emailAddress: lead.email_sha256 }); // the ledger already holds the same hash Google asks for
   if (lead.phone_e164) identifiers.push({ phoneNumber: sha256(lead.phone_e164) });
   if (!hasClickId && !identifiers.length) return { event: null, note: "no click id and no phone or email, so there is nothing to attribute to" };
   const event: IngestEvent = {

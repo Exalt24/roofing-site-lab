@@ -66,7 +66,9 @@ function properNames(text: string): string[] {
 /** The customer details that must never appear in public text, split into the pieces a draft could repeat on their own. */
 export function privateBits(intake: Intake): string[] {
   const pv = intake.private;
-  return [...pv.customerName.split(/\s+/), ...pv.streetAddress.split(/[,\s]+/).filter((x) => x.length > 3 || /\d/.test(x)), pv.email, ...(pv.phone.match(/\d{3,}/g) ?? [])].filter((x) => x.length >= 3);
+  // a name part of two letters counts (Li, Wu, Ng, Ho, Xu are ordinary surnames); the other details keep the three character floor
+  const nameParts = pv.customerName.split(/\s+/).filter((x) => x.length >= 2);
+  return [...nameParts, ...[...pv.streetAddress.split(/[,\s]+/).filter((x) => x.length > 3 || /\d/.test(x)), pv.email, ...(pv.phone.match(/\d{3,}/g) ?? [])].filter((x) => x.length >= 3)];
 }
 
 /** The free-text boxes an employee types into reach the model. A customer's name, phone, email or street address typed there would be sent out, so the intake is refused BEFORE any model call and the employee is told which box to fix. */

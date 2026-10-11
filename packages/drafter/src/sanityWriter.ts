@@ -2,6 +2,7 @@
 // the free plan has no create-only token role, so the writer refuses any id that is not in the drafts. namespace and the tests prove it.
 import type { Draft, Intake } from "./types.ts";
 import type { RunResult } from "./drafter.ts";
+import { shapeErrors } from "./schema.ts";
 
 export interface MutationClient { transaction(): { createOrReplace(doc: Record<string, unknown>): any; createIfNotExists(doc: Record<string, unknown>): any; commit(): Promise<unknown> } }
 
@@ -26,8 +27,9 @@ export function buildDocs(run: RunResult, intake: Intake, assetRefs: Record<stri
     _id: runId, _type: "aiRun", idempotencyKey: run.idempotencyKey, model: run.model, promptVersion: run.promptVersion, inputHash: run.inputHash, status: run.status,
     validatorReport: JSON.stringify({ attempts: run.attempts, history: run.history }, null, 1), missingInformation: run.missingInformation, outputJson: JSON.stringify(run.draft, null, 1), createdAt: new Date().toISOString(),
   }];
+  // a malformed best-effort draft (wrong shape from the model) is kept in the aiRun record for a person to read, but no project document is built from it
   const d = run.draft as Draft | null;
-  if (d) {
+  if (d && shapeErrors(d).length === 0) {
     const sec = (k: string) => d.sections.find((s) => s.key === k)?.body ?? "";
     docs.push({
       _id: `drafts.project-ai-${intake.jobId}`, _type: "project", title: run.status === "ready_for_review" ? d.title : `NEEDS A PERSON: ${d.title}`, slug: { _type: "slug", current: slugify(d.title) }, summary: d.summary,

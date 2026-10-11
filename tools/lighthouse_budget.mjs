@@ -2,7 +2,7 @@
 //   npm run build && node tools/lighthouse_budget.mjs [--a11y 100] [--tbt 200] [--cls 0.05] [--js-kb 60]        (what the code controls; runs in CI)
 //   node tools/lighthouse_budget.mjs --url https://your-site.example [--perf 90] [--lcp 2500] ...                (also performance and LCP, which need the real image CDN)
 // The fixture build serves the full-size sample PNGs from disk, so its performance score and LCP say nothing about production and are only checked with --url.
-// Pass a deliberately tight budget (for example --js-kb 0) to watch it fail.
+// Pass a deliberately tight budget (for example --a11y 101) to watch it fail; the fixture build ships no script, so --js-kb 0 still passes.
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";

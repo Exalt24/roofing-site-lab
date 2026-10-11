@@ -28,15 +28,24 @@ export function clickIds(url: string | null | undefined): ClickIds {
   } catch { return {}; }
 }
 
+/** A GA cookie value looks like GA1.1.123456789.1700000000; Google wants the client id without the GA1.1 prefix, which is what the site form sends. */
+export function gaClientIdFrom(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const m = /^GA\d\.\d\.(\d+\.\d+)$/.exec(raw.trim());
+  return m ? m[1] : raw.trim() || undefined;
+}
+
 export function toE164(raw: string | null | undefined, defaultCountry = "1"): string | null {
   if (!raw) return null;
   // an extension ("ext. 12", "x12", "#12") is not part of the number: cut it off before reading digits, or "...0142 ext. 1234" becomes a bogus 15 digit number
   const main = raw.split(/\s*(?:ext\.?|extension|x|#)\s*\d+\s*$/i)[0];
   const d = main.replace(/[^\d+]/g, "");
-  if (d.startsWith("+")) return /^\+[1-9]\d{7,14}$/.test(d) ? d : null; // a country code never starts with 0
+  // North American numbers (+1) must be a real shape: ten digits, area code and exchange not starting with 0 or 1; anything else would be hashed and uploaded as a number nobody owns
+  const nanp = (e: string) => (e.startsWith("+1") ? /^\+1[2-9]\d{2}[2-9]\d{6}$/.test(e) : true);
+  if (d.startsWith("+")) return /^\+[1-9]\d{7,14}$/.test(d) && nanp(d) ? d : null; // a country code never starts with 0
   const digits = d.replace(/\D/g, "");
-  if (digits.length === 10) return `+${defaultCountry}${digits}`;
-  if (digits.length === 11 && digits.startsWith(defaultCountry)) return `+${digits}`;
+  if (digits.length === 10) { const e = `+${defaultCountry}${digits}`; return nanp(e) ? e : null; }
+  if (digits.length === 11 && digits.startsWith(defaultCountry)) { const e = `+${digits}`; return nanp(e) ? e : null; }
   return null;
 }
 
@@ -74,7 +83,7 @@ export function parseCall(p: Json): LeadEvent {
     landingPageUrl: str(p.landing_page_url), source: str(p.source), medium: str(p.medium), campaign: str(p.campaign),
     utm: { source: str(p.utm_source) ?? ids.utm_source, medium: str(p.utm_medium) ?? ids.utm_medium, campaign: str(p.utm_campaign) ?? ids.utm_campaign },
     gclid: str(p.gclid) ?? ids.gclid, wbraid: ids.wbraid, gbraid: ids.gbraid, msclkid: str(p.msclkid) ?? ids.msclkid,
-    gaClientId: str(p.custom?._ga) ?? undefined, // Custom Cookie Capture puts cookie values in `custom`
+    gaClientId: gaClientIdFrom(str(p.custom?._ga)), // Custom Cookie Capture puts cookie values in `custom`
     firstTime: typeof p.first_call === "boolean" ? p.first_call : null, trackingNumber: str(p.tracking_phone_number), raw: p,
   };
 }

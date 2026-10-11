@@ -119,3 +119,4 @@ nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 
 .cta a:focus-visible { outline-color: #fff; }
 .section p a[href^="tel:"] { padding: 10px 0; }
 .hero .hero-copy { background: linear-gradient(to top, rgba(10, 20, 25, .78), rgba(10, 20, 25, 0) 75%); }
+.story a { overflow-wrap: anywhere; }
