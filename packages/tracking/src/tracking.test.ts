@@ -289,6 +289,80 @@ test("MUTANT: every ad field is dropped without the box (wbraid, gbraid, campaig
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("MUTANT: /health turns to 503 when a lead notification is stuck (no webhook, or out of retries) and says nothing else, and back to ok once it is sent", async () => {
+  const t0 = new Date("2026-10-05T10:00:00Z");
+  let clock = t0;
+  const t = await boot({ now: () => clock });
+  assert.equal((await fetch(t.base + "/health")).status, 200);
+  const { id } = t.ledger.insert(parseForm({ id: 61, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/", submitted_at: t0.toISOString() }), t0);
+  t.ledger.enqueue(id, "email", { to: "o@x.example", subject: "s", text: "t" }, t0);
+  clock = new Date(t0.getTime() + 30 * 60000);
+  assert.equal((await fetch(t.base + "/health")).status, 200, "thirty minutes is still inside the grace");
+  clock = new Date(t0.getTime() + 61 * 60000);
+  const bad = await fetch(t.base + "/health");
+  assert.equal(bad.status, 503); assert.deepEqual(await bad.json(), { ok: false });
+  const row = t.ledger.due(new Date(clock.getTime() + 86400000))[0];
+  t.ledger.markSent(row.id, clock);
+  assert.equal((await fetch(t.base + "/health")).status, 200, "ok again once the notification went out");
+  await t.close();
+});
+
+test("MUTANT: behind a plain proxy only the last X-Forwarded-For entry counts and a spoofed CF-Connecting-IP is ignored; behind Cloudflare the CF header is the address", async () => {
+  const send = (t: Awaited<ReturnType<typeof boot>>, headers: Record<string, string>, i: number) => fetch(t.base + "/api/lead", { method: "POST", headers, body: formData({ phone: `604-555-03${10 + i}`, submission_id: `p${i}` }) }).then((r) => r.status);
+  const plain = await boot({ rateLimit: { max: 2, windowSeconds: 60 }, trustProxyHeader: true });
+  assert.deepEqual([await send(plain, { "x-forwarded-for": "9.9.9.9, 203.0.113.7", "cf-connecting-ip": "1.1.1.1" }, 1), await send(plain, { "x-forwarded-for": "8.8.8.8, 203.0.113.7", "cf-connecting-ip": "2.2.2.2" }, 2), await send(plain, { "x-forwarded-for": "7.7.7.7, 203.0.113.7", "cf-connecting-ip": "3.3.3.3" }, 3)], [200, 200, 429], "invented earlier entries and a spoofed CF header do not give a new budget");
+  await plain.close();
+  const cf = await boot({ rateLimit: { max: 2, windowSeconds: 60 }, trustCloudflare: true });
+  assert.deepEqual([await send(cf, { "cf-connecting-ip": "1.1.1.1" }, 4), await send(cf, { "cf-connecting-ip": "2.2.2.2" }, 5), await send(cf, { "cf-connecting-ip": "3.3.3.3" }, 6)], [200, 200, 200], "behind Cloudflare each CF address has its own budget");
+  await cf.close();
+});
+
+test("the forget and stage commands delete a person's lead, withdraw marketing consent and record how a lead turned out, in a real ledger file", async () => {
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "fg-"));
+  const file = join(dir, "l.sqlite");
+  const cli = (n: string) => new URL(`./${n}`, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+  try {
+    const l = new Ledger(file);
+    const a = l.insert({ ...parseForm({ id: 71, form_data: { name: "Ana", phone: "604-555-0171" }, landing_page_url: "https://x.example/", submitted_at: new Date().toISOString() }), marketingOptIn: true }).id;
+    const b = l.insert(parseForm({ id: 72, form_data: { name: "Bo", phone: "604-555-0172" }, landing_page_url: "https://x.example/", submitted_at: new Date().toISOString() })).id;
+    l.enqueue(b, "email", { to: "o@x.example", subject: "s", text: "NEEDLE-FORGET" }, new Date());
+    l.db.close();
+    const run = (n: string, ...args: string[]) => execFileSync(process.execPath, ["--experimental-sqlite", cli(n), file, ...args], { encoding: "utf8" });
+    assert.match(run("forget.ts", String(a), "--marketing-only"), /withdrawn/);
+    assert.match(run("stage.ts", String(a), "estimate", "5200"), /stage estimate, estimate 5200/);
+    assert.match(run("forget.ts", String(b)), /deleted/);
+    assert.equal(spawnSync(process.execPath, ["--experimental-sqlite", cli("forget.ts"), file, "9999"]).status, 1);
+    assert.equal(spawnSync(process.execPath, ["--experimental-sqlite", cli("stage.ts"), file, String(a), "bogus"]).status, 2);
+    const after = new Ledger(file);
+    assert.equal(after.get(a)!.marketing_opt_in, 0); assert.equal(after.get(a)!.stage, "estimate"); assert.equal(after.get(b), undefined);
+    assert.equal(after.pending(), 0, "the deleted lead's waiting notification went with it");
+    after.db.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("MUTANT: a failure while queueing the notification stores nothing (the lead and its notification are one unit), the retry then stores both, and a retry that unticks the advertising box withdraws it", async () => {
+  const t = await boot();
+  const real = t.ledger.enqueue.bind(t.ledger);
+  let boom = true;
+  t.ledger.enqueue = ((...a: Parameters<typeof real>) => { if (boom) { boom = false; throw new Error("disk hiccup"); } return real(...a); }) as typeof real;
+  const sid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: sid }) })).status, 500);
+  assert.equal(t.ledger.count(), 0, "nothing half-stored");
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: sid }) })).status, 200);
+  assert.equal(t.ledger.count(), 1); assert.equal(t.ledger.pending(), 1);
+  const stored = t.ledger.all()[0];
+  assert.equal(stored.gclid, "GG1"); assert.equal(stored.measurement_opt_in, 1); assert.ok(stored.click_at === null || stored.click_at.length > 0);
+  assert.equal((await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: sid, measurement_opt_in: "" }) })).status, 200);
+  const after = t.ledger.all()[0];
+  assert.equal(after.gclid, null, "unticking on a retry withdraws the click id"); assert.equal(after.measurement_opt_in, 0);
+  assert.equal(t.ledger.pending(), 1, "and no second notification");
+  await t.close();
+});
+
 test("the withdraw command deletes one lead's advertising details in a real ledger file and refuses an unknown id", async () => {
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, rmSync } = await import("node:fs");

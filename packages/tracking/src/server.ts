@@ -1,7 +1,7 @@
 // A runnable receiver: reads its settings from the environment, starts the HTTP receiver, drains the outbox every minute, purges expired leads daily and,
 // when CallRail API settings are present, reconciles missed webhooks at start-up and then nightly.
 //   node --experimental-sqlite src/server.ts
-// Required: CALLRAIL_SIGNING_KEY, OWNER_EMAIL. Optional: PORT (8787), LEDGER_PATH (./ledger.sqlite), ALLOW_ORIGIN, TRUST_PROXY=1 (only behind a proxy that overwrites the client address),
+// Required: CALLRAIL_SIGNING_KEY, OWNER_EMAIL. Optional: PORT (8787), LEDGER_PATH (./ledger.sqlite), ALLOW_ORIGIN, TRUST_PROXY=1 (behind a plain reverse proxy: the last X-Forwarded-For entry is the client) or TRUST_PROXY=cloudflare (behind Cloudflare: CF-Connecting-IP),
 // RETENTION_MONTHS (24, whole months), TURNSTILE_SECRET (verifies the form's Turnstile token), NOTIFY_WEBHOOK_URL (each new lead is POSTed there as JSON; with none, messages wait in the outbox), CALLRAIL_API_KEY and CALLRAIL_ACCOUNT_ID (reconcile),
 // RECONCILE_LOOKBACK_DAYS (3: CallRail does not resend, so a server that was down longer than this loses those calls).
 // The reconcile request follows CallRail's published API reference; it has not been run against a live account, and it is not verified that a call's id in the webhook equals its id in the API.
@@ -27,7 +27,7 @@ export async function startServer(env: Record<string, string | undefined>, log: 
   if (!Number.isFinite(lookback) || lookback < 1) throw new Error("RECONCILE_LOOKBACK_DAYS must be 1 or more");
   const ledger = new Ledger(env.LEDGER_PATH ?? "./ledger.sqlite");
   const server = createReceiver({
-    ledger, signingKey, ownerEmail, allowOrigin: env.ALLOW_ORIGIN, trustProxyHeader: env.TRUST_PROXY === "1",
+    ledger, signingKey, ownerEmail, allowOrigin: env.ALLOW_ORIGIN, trustProxyHeader: env.TRUST_PROXY === "1", trustCloudflare: env.TRUST_PROXY === "cloudflare",
     rateLimit: { max: 10, windowSeconds: 60 }, replayWindowSeconds: 24 * 3600,
     // with TURNSTILE_SECRET set, the quote form needs a token Cloudflare accepts (the site renders the widget when PUBLIC_TURNSTILE_SITEKEY is set)
     turnstileVerify: env.TURNSTILE_SECRET ? async (token, ip) => {
@@ -76,6 +76,7 @@ export async function startServer(env: Record<string, string | undefined>, log: 
     setInterval(safe("reconcile", reconcile), 24 * 3600 * 1000),
   ];
   for (const t of timers) t.unref();
+  if (!env.NOTIFY_WEBHOOK_URL) log("NOTIFY_WEBHOOK_URL is not set: quote requests are stored but nobody is told; /health turns to 503 an hour after the first one");
   if (!env.ALLOW_ORIGIN) log("ALLOW_ORIGIN is not set: a quote form served from a different address than this receiver will store the lead but the visitor will see an error; set it to the site address");
   try { purge(); } catch (e) { log(`retention error: ${(e as Error).message}`); }
   safe("reconcile", reconcile)(); // at start-up too, so a server that restarts more often than daily still catches up

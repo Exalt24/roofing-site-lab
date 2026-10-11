@@ -34,7 +34,7 @@ export function shapeErrors(x: unknown): string[] {
   const errs: string[] = [];
   const d = x as Partial<Draft> | null;
   if (!d || typeof d !== "object") return ["draft is not an object"];
-  const str = (v: unknown, name: string) => { if (typeof v !== "string" || !v.trim()) errs.push(`${name} must be a non-empty string`); };
+  const str = (v: unknown, name: string) => { if (typeof v !== "string" || !v.trim()) errs.push(`${name} must be a non-empty string`); else if (v.length > 5000) errs.push(`${name} is too long (over 5000 characters)`); }; // a cap keeps every pattern applied to it fast
   str(d.title, "title"); str(d.summary, "summary");
   if (!Array.isArray(d.sections) || !d.sections.length) errs.push("sections must be a non-empty array");
   else for (const [i, s] of d.sections.entries()) {

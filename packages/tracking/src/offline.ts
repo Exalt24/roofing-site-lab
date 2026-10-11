@@ -78,14 +78,19 @@ export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value
   if (Number.isNaN(click)) return { event: null, note: "the stored click time is not a valid date, so the click age cannot be checked" };
   if (Number.isNaN(at.getTime()) || Number.isNaN(uploadAt.getTime())) return { event: null, note: "the conversion or upload time is not a valid date" };
   if (!Number.isFinite(opts.value) || opts.value < 0) return { event: null, note: "the value must be a number of zero or more" };
-  if (at.getTime() > uploadAt.getTime()) return { event: null, note: "the conversion is dated after the upload time, which Google rejects" };
+  if (at.getTime() > uploadAt.getTime()) return { event: null, note: "the conversion is dated after the upload time, which is refused here as a precaution (Google can answer EVENT_TIME_INVALID)" };
   if (at.getTime() < click) return { event: null, note: "the conversion is dated before the click, which Google rejects" };
   const age = clickAgeDays(lead, uploadAt);
   if (age < 0) return { event: null, note: "the upload time is before the click" };
+  // the recorded-call announcement is the basis for a call; nothing says it is valid consent for a caller in the EEA, UK or Switzerland, so only North American numbers go up
+  if (lead.kind === "call" && !(lead.phone_e164 ?? "").startsWith("+1")) return { event: null, note: "the caller's number is outside North America, where the announcement is not treated as enough, so nothing is sent to Google" };
   const hasClickId = !!(lead.gclid || lead.gbraid || lead.wbraid);
   const identifiers: ({ emailAddress: string } | { phoneNumber: string })[] = [];
-  if (opts.email) identifiers.push({ emailAddress: sha256(normaliseEmail(opts.email)) });
-  else if (lead.email_sha256) identifiers.push({ emailAddress: lead.email_sha256 }); // the ledger already holds the same hash Google asks for
+  // an email goes up only for a quote form lead that ticked the box; a caller agreed to a scrambled copy of their NUMBER and nothing else
+  if (lead.kind === "form") {
+    if (opts.email) identifiers.push({ emailAddress: sha256(normaliseEmail(opts.email)) });
+    else if (lead.email_sha256) identifiers.push({ emailAddress: lead.email_sha256 }); // the ledger already holds the same hash Google asks for
+  }
   if (lead.phone_e164) identifiers.push({ phoneNumber: sha256(lead.phone_e164) });
   if (!hasClickId && !identifiers.length) return { event: null, note: "no click id and no phone or email, so there is nothing to attribute to" };
   const event: IngestEvent = {
@@ -124,8 +129,14 @@ export function adsIngestRequest(dest: DataManagerDestination, events: IngestEve
 /** Data Manager accepts at most 2,000 events per IngestEvents request, and a fast-fail API rejects the whole request for one bad event, so a long list goes up in chunks. */
 export const MAX_EVENTS_PER_REQUEST = 2000;
 export function adsIngestRequests(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; adPersonalization?: boolean; validateOnly?: boolean }): IngestEventsRequest[] {
+  // phone and web events go in separate requests: one bad event fails a whole request, and whether an UPLOAD_CLICKS action accepts PHONE events is not documented, so a PHONE problem must not take the web events down with it
   const out: IngestEventsRequest[] = [];
-  for (let i = 0; i < events.length; i += MAX_EVENTS_PER_REQUEST) out.push(adsIngestRequest(dest, events.slice(i, i + MAX_EVENTS_PER_REQUEST), opts));
+  for (const source of ["WEB", "PHONE"] as const) {
+    const group = events.filter((e) => e.eventSource === source);
+    for (let i = 0; i < group.length; i += MAX_EVENTS_PER_REQUEST) out.push(adsIngestRequest(dest, group.slice(i, i + MAX_EVENTS_PER_REQUEST), opts));
+  }
+  const other = events.filter((e) => e.eventSource !== "WEB" && e.eventSource !== "PHONE");
+  for (let i = 0; i < other.length; i += MAX_EVENTS_PER_REQUEST) out.push(adsIngestRequest(dest, other.slice(i, i + MAX_EVENTS_PER_REQUEST), opts));
   return out.length ? out : [adsIngestRequest(dest, [], opts)];
 }
 

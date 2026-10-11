@@ -120,16 +120,14 @@ test("a click on a tel link pushes click_to_call to the data layer", async () =>
   await page.close();
 });
 
-test("the JSON-LD on a project page validates structurally: Article with images, VideoObject with a content url, BreadcrumbList", async () => {
+test("the JSON-LD on a project page validates structurally: Article with images, BreadcrumbList", async () => {
   const page = await browser.newPage();
   await page.goto(BASE + "/projects/british-properties-cedar-replacement/", { waitUntil: "load" });
   const ld = await page.$$eval("script[type='application/ld+json']", (els) => els.map((e) => JSON.parse(e.textContent)));
   const types = ld.map((x) => x["@type"]);
-  assert.deepEqual(types.sort(), ["Article", "BreadcrumbList", "VideoObject"]);
+  assert.deepEqual(types.sort(), ["Article", "BreadcrumbList"], "the fixture build has no CMS dates, so no video markup is claimed");
   const article = ld.find((x) => x["@type"] === "Article");
   assert.ok(article.image.length >= 2 && article.image.every((i) => i.contentUrl && i.creditText));
-  const video = ld.find((x) => x["@type"] === "VideoObject");
-  assert.ok(video.contentUrl && video.thumbnailUrl && video.uploadDate && video.duration === "PT6S");
   assert.equal(ld.some((x) => x["@type"] === "FAQPage" || x.aggregateRating), false, "no FAQ markup and no self-review stars");
   await page.close();
 });

@@ -25,7 +25,10 @@ const project = page.type === "project" ? projectsHere[0] : undefined;
 const service = page.type === "service" ? ds.services.find((s) => `/services/${s.slug}/` === page.url) : undefined;
 const material = page.type === "material" ? ds.materials.find((m) => `/materials/${m.slug}/` === page.url) : undefined;
 const area = page.type === "area" ? ds.neighbourhoods.find((n) => `/areas/${n.slug}/` === page.url) : undefined;
-const hero = page.type === "home" ? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0] : project?.photos[0];
+const STAGE = { before: "Before", during: "During", after: "After" } as const;
+const ORDER = { before: 0, during: 1, after: 2 } as const;
+// the first photo on a project page is the first one in before, during, after order, so that is the one to preload
+const hero = page.type === "home" ? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0] : project ? [...project.photos].sort((a, b) => ORDER[a.stage ?? "after"] - ORDER[b.stage ?? "after"])[0] : undefined;
 const INDEX_DESCRIPTIONS: Record<string, string> = {
   "projects-index": `${ds.projects.filter((p) => p.status === "published").length} finished roofing and solar jobs in West Vancouver, each with what was wrong, what we did and what happened.`,
   "services-index": "Metal, cedar, asphalt, composite and flat roofing, skylights and solar, each shown through jobs we have finished.",
@@ -38,8 +41,6 @@ const ogPic = hero ?? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.p
 const jsonld = jsonldFor(ds, page, project, service);
 const phone = ds.business.telephone.replace(/^\+1-/, "").replace("-", " ");
 const reviewed = page.type === "home" ? ds.projects.filter((p) => p.status === "published" && p.review?.consent).slice(0, 3) : [];
-const STAGE = { before: "Before", during: "During", after: "After" } as const;
-const ORDER = { before: 0, during: 1, after: 2 } as const;
 const stagedPhotos = project ? [...project.photos].sort((a, b) => (ORDER[a.stage ?? "after"]) - (ORDER[b.stage ?? "after"])) : [];
 const crumbs = page.breadcrumbs.length ? [...page.breadcrumbs, { url: page.url, text: page.title }] : [];
 const relatedLinks = page.links.filter((l) => /^\/(services|materials|areas)\//.test(l.url));

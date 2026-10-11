@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sha256, normaliseEmail, parseCall, Ledger, ga4Payload, adsIngestEvent, adsIngestRequest, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
+import { sha256, normaliseEmail, parseCall, Ledger, ga4Payload, adsIngestEvent, adsIngestRequest, adsIngestRequests, leadsNearingClickExpiry, reconcileCalls } from "./index.ts";
 
 const DAY = 24 * 3600 * 1000;
 const call = (id: number, extra: Record<string, unknown> = {}) => ({ id: `CAL${id}`, customer_phone_number: "+16045550100", customer_name: "Test Caller", tracking_phone_number: "+17785550101", start_time: new Date(Date.parse("2026-10-05T21:03:00Z") + (Number(String(id).replace(/[^0-9]/g, "")) % 5000 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0)) * 60000).toISOString(), source: "Google Ads", landing_page_url: "https://seabreeze-roofing.example/projects/?gclid=Cj0abc&utm_source=google&utm_medium=cpc", first_call: true, ...extra });
@@ -16,8 +16,14 @@ test("Ads offline conversion (Data Manager API): one click id, hashed identifier
   assert.match(event!.eventTimestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-0[78]:00$/);
   assert.equal(event?.eventSource, "PHONE", "the reference's enum has PHONE, not CALL");
   assert.equal(event?.transactionId, `lead-${row.id}-sold`);
-  const email = event!.userData!.userIdentifiers[0] as { emailAddress: string };
+  assert.deepEqual(event!.userData!.userIdentifiers.map((u) => Object.keys(u)[0]), ["phoneNumber"], "a call sends the caller's scrambled number and never an email");
+  const formEvent = adsIngestEvent({ ...row2, kind: "form", measurement_opt_in: 1 }, { stage: "sold", value: 17900, at: after(row, 20), uploadAt: after(row, 20), email: "Ana.Smith@Gmail.com" }).event;
+  const email = formEvent!.userData!.userIdentifiers[0] as { emailAddress: string };
   assert.equal(email.emailAddress, sha256("anasmith@gmail.com"), "gmail dots are removed before hashing");
+  const abroad = new Ledger(); const { id: abId } = abroad.insert(parseCall(call(2, { customer_phone_number: "+442079460958" })));
+  assert.equal(adsIngestEvent(abroad.get(abId)!, { stage: "sold", value: 1, at: after(row, 2), uploadAt: after(row, 2) }).event, null, "a caller outside North America is not uploaded");
+  const both = adsIngestRequests({ operatingAccountId: "1", conversionActionId: "2" }, [event!, formEvent!], { consent: true });
+  assert.deepEqual(both.map((r) => r.events.map((e) => e.eventSource)), [["WEB"], ["PHONE"]], "phone and web events go in separate requests");
   const req = adsIngestRequest({ operatingAccountId: "1234567890", conversionActionId: "555" }, [event!], { consent: true });
   assert.equal(req.validateOnly, true); assert.equal(req.encoding, "HEX"); assert.equal(req.destinations[0].productDestinationId, "555");
   assert.throws(() => adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [event!], { validateOnly: false, consent: false }), /no consent/);

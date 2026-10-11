@@ -101,6 +101,12 @@ test("MUTANT: the draft-only guard refuses a document that is not in the drafts 
   assert.doesNotThrow(() => assertAllDrafts([{ _id: "drafts.ok" }]));
 });
 
+test("MUTANT: the draft that is stored is the folded text that was validated, not the original with invisible padding", async () => {
+  const d = structuredClone(goodDraft); d.seo.title = d.seo.title.slice(0, 30) + "​".repeat(40) + d.seo.title.slice(30);
+  const r = await draftProject(goodIntake, ctx, { llm: async () => structuredClone(d), model: "stub", maxAttempts: 1 });
+  assert.equal((r.draft as { seo: { title: string } }).seo.title.includes("​"), false);
+});
+
 test("MUTANT: a photo id named like an object property does not become an asset reference", async () => {
   const draft = structuredClone(goodDraft); draft.photos[0].photoId = "constructor";
   const r = await draftProject(goodIntake, ctx, { llm: async () => structuredClone(draft), model: "stub", maxAttempts: 1 });

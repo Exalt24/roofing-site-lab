@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { DRAFT_JSON_SCHEMA, PROMPT_VERSION } from "./schema.ts";
 import { SYSTEM, userMessage } from "./prompt.ts";
-import { validateDraft, inputPrivacyProblems } from "./validators.ts";
+import { validateDraft, inputPrivacyProblems, normaliseStrings } from "./validators.ts";
 import { buildFacts, missingSlots } from "./facts.ts";
 import type { Context, Draft, Intake, LlmFn, Report } from "./types.ts";
 
@@ -56,7 +56,7 @@ export async function draftProject(i: Intake, ctx: Context, opts: { llm: LlmFn; 
       continue;
     }
     try {
-      out = withMissingInformation(out, i);
+      out = withMissingInformation(normaliseStrings(out), i); // what is validated is what is stored: folded text, never the original with invisible padding
       last = validateDraft(out, i, ctx);
     } catch (e) {
       // a model that returns something the validators cannot even read is a failed attempt to retry, never a crash

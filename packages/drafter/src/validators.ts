@@ -65,7 +65,7 @@ function properNames(text: string): string[] {
 
 /** Compatibility-fold a string (fullwidth and Arabic-Indic digits, ligatures) and drop invisible format characters (zero-width space, soft hyphen). */
 export const nfk = (s: string): string => s.normalize("NFKC").replace(/\p{Cf}/gu, "");
-function normaliseStrings<T>(x: T): T {
+export function normaliseStrings<T>(x: T): T {
   if (typeof x === "string") return nfk(x) as T;
   if (Array.isArray(x)) return x.map(normaliseStrings) as T;
   if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, normaliseStrings(v)])) as T;
@@ -92,10 +92,12 @@ export function inputPrivacyProblems(intake: Intake): string[] {
   const bits = privateBits(intake);
   for (const [label, value] of boxes) {
     if (!value) continue;
-    const nv = nfk(value); const t = nv.toLowerCase();
+    const nv = nfk(value);
+    if (nv.length > 5000) { out.push(`the ${label} box is too long to check (over 5000 characters)`); continue; } // a very long box would make the patterns below take seconds
+    const t = nv.toLowerCase();
     for (const b of bits) if (hasWord(t, b.toLowerCase())) out.push(`"${b}" (a customer detail) is typed in the ${label} box`);
     if (PHONE_PATTERN.test(nv)) out.push(`a phone number is typed in the ${label} box`);
-    if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(nv)) out.push(`an email address is typed in the ${label} box`);
+    if (/[\w.+-]{1,64}@[\w-]{1,255}\.[\w.]{1,255}/.test(nv)) out.push(`an email address is typed in the ${label} box`);
     if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(nv)) out.push(`a street address is typed in the ${label} box`);
   }
   return out;
@@ -108,6 +110,11 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   if (shape.length) return { ok: false, errors: shape, warnings };
   // look through lookalike characters and invisible ones (fullwidth digits, zero-width spaces, soft hyphens) before any check, or they walk a banned word or a number past every pattern
   const d = normaliseStrings(draft) as Draft;
+  // after folding, anything still outside plain Latin text is a way to hide a word or a number from the patterns: another script's lookalike letter, a combining mark, a non-ASCII digit
+  const everyString = (x: unknown): string[] => (typeof x === "string" ? [x] : Array.isArray(x) ? x.flatMap(everyString) : x && typeof x === "object" ? Object.values(x).flatMap(everyString) : []);
+  if (everyString(d).some((t) => /\p{M}/u.test(t) || /[^\p{Script=Latin}\p{Script=Common}]/u.test(t) || /(?![0-9])\p{Nd}/u.test(t))) errors.push("the draft contains letters from another script, combining marks or non-ASCII digits, which can hide a banned word or a number");
+  const photoIds = d.photos.map((p) => p.photoId);
+  if (new Set(photoIds).size !== photoIds.length) errors.push("two photos share one photo id");
   const facts = buildFacts(intake, ctx);
   const byId = new Map<string, Fact>(facts.map((f) => [f.id, f]));
   const entered = facts.filter((f) => f.kind === "entered");
@@ -201,7 +208,7 @@ export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Rep
   // 6. private data
   for (const b of privateBits(intake)) if (hasWord(lc(text), lc(b))) errors.push("a private customer detail appears in public text");
   if (PHONE_PATTERN.test(text)) errors.push("a phone number appears in public text");
-  if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(text)) errors.push("an email address appears in public text");
+  if (/[\w.+-]{1,64}@[\w-]{1,255}\.[\w.]{1,255}/.test(text)) errors.push("an email address appears in public text");
   if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(text)) errors.push("a street address appears in public text");
 
   // 7. lengths and SEO hygiene

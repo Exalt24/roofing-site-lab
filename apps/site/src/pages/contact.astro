@@ -42,7 +42,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       <input type="hidden" name="ga_client_id" value="" />
       {turnstile && <div class="cf-turnstile" data-sitekey={turnstile}></div>}
       {turnstile && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
-      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, We keep your phone number and a scrambled form of your email in our records for 24 months; your name and message reach us as a notification that we keep only as long as we need it to follow up your quote. The advertising box above is separate and optional. See our <a href="/privacy/">privacy page</a>.</p>
+      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it. We keep your phone number and the details of your request in our records for 24 months, and, only if you tick the advertising box, a scrambled form of your email. Your name, phone number, email and message also reach us as a notification that we keep only as long as we need it to follow up your quote. The advertising box above is separate and optional. See our <a href="/privacy/">privacy page</a>.</p>
       <button class="btn" type="submit" disabled={!connected}>{connected ? "Send" : "Not connected in this sample"}</button>
       <p class="muted small-print" id="lead-status" role="status"></p>
     </form>
@@ -72,7 +72,7 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
         fetch(f.action, { method: "POST", body: new FormData(f) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
           if (res.ok) { s.textContent = "Thanks, we have it and will call you back the same business day."; (window.dataLayer = window.dataLayer || []).push({ event: "generate_lead", form_id: "quote" }); f.reset(); newId(); }
           else s.textContent = "That did not go through: " + (res.j.error || "please call us instead") + ".";
-        }).catch(function () { s.textContent = "That did not go through, please call us instead."; });
+        }).catch(function () { s.textContent = "That did not go through, please call us instead."; }).then(function () { try { if (window.turnstile) window.turnstile.reset(); } catch (e) {} }); // a Turnstile token works once, so the widget gets a fresh one after every reply
       });
     })();
   </script>

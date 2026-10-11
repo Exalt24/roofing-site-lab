@@ -44,6 +44,17 @@ test("MUTANT: invisible and lookalike characters do not walk a banned word, a nu
   assert.match(inputPrivacyProblems(j).join(" | "), /phone number/, "a fullwidth phone number");
 });
 
+test("MUTANT: another script's lookalike letters, combining marks and non-ASCII digits are refused, long text cannot stall the checks, and two photos cannot share an id", () => {
+  const withText = (t: string) => { const d = clone(goodDraft); d.sections[2].body += " " + t; return run(d).errors.join(" | "); };
+  for (const [label, t] of [["Cyrillic a in guarantee", "We give a guаrantee on the work."], ["Cyrillic o in copper", "We used cоpper flashing."], ["a combining mark", "We give a guarantee\u0338 on it."], ["Arabic-Indic digits", "Customers save \u0663\u0660 percent."], ["Devanagari digits", "It took \u0967\u0968 days."]] as const) assert.match(withText(t), /another script|combining marks|non-ASCII/, label);
+  const long = clone(goodDraft); long.sections[0].body = "a.".repeat(60_000);
+  const t0 = Date.now(); const r = run(long); assert.ok(Date.now() - t0 < 500, `long text took ${Date.now() - t0} ms`); assert.match(r.errors.join(" | "), /too long/);
+  const box = clone(goodIntake); box.staffNotes = "a-".repeat(60_000);
+  const t1 = Date.now(); const p = inputPrivacyProblems(box); assert.ok(Date.now() - t1 < 500, "a long intake box is cut off before the patterns run"); assert.match(p.join(" | "), /too long to check/);
+  const dup = clone(goodDraft); dup.photos.push({ ...dup.photos[0] });
+  assert.match(run(dup).errors.join(" | "), /share one photo id/);
+});
+
 test("MUTANT: a two-letter surname typed in the notes refuses the intake, and a draft repeating it fails", () => {
   const i = clone(goodIntake); i.private.customerName = "Li Wu"; i.staffNotes = "Li Wu called twice about the leak. Wu is the owner.";
   assert.match(inputPrivacyProblems(i).join(" | "), /"Wu" \(a customer detail\)/);

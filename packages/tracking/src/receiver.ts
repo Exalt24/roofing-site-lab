@@ -13,6 +13,7 @@ export interface ReceiverOptions {
   rateLimit?: { max: number; windowSeconds: number };
   allowOrigin?: string; // no CORS header at all unless this is set
   maxBodyBytes?: number;
+  trustCloudflare?: boolean; // behind Cloudflare only: the client address is CF-Connecting-IP
   trustProxyHeader?: boolean; // only true when the receiver sits behind a proxy that overwrites X-Forwarded-For / CF-Connecting-IP; otherwise a caller can invent a new address per request and walk past the rate limit
 }
 
@@ -56,12 +57,15 @@ export function createReceiver(o: ReceiverOptions): Server {
   return createServer(async (req, res) => {
     let url: URL;
     try { url = new URL(req.url ?? "/", "http://x"); } catch { return json(res, 400, { error: "bad request target" }); } // a malformed target such as "//:" must be a 400, never an unhandled rejection that ends the process
-    const ip = o.trustProxyHeader
-      ? String(req.headers["cf-connecting-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim()
+    // Which header names the real client depends on what sits in front: behind a plain proxy the LAST X-Forwarded-For entry is the address that proxy saw (earlier ones are whatever the client sent), and only behind Cloudflare is CF-Connecting-IP trusted.
+    // Trusting a header the proxy does not overwrite lets a caller invent a new address per request and walk past the rate limit.
+    const xff = String(req.headers["x-forwarded-for"] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    const ip = o.trustCloudflare ? String(req.headers["cf-connecting-ip"] ?? req.socket.remoteAddress ?? "").trim()
+      : o.trustProxyHeader ? (xff[xff.length - 1] ?? String(req.socket.remoteAddress ?? ""))
       : String(req.socket.remoteAddress ?? "");
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { ...(o.allowOrigin ? { "Access-Control-Allow-Origin": o.allowOrigin } : {}), "Access-Control-Allow-Headers": "Content-Type" }); return res.end(); }
-      if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true });
+      if (req.method === "GET" && url.pathname === "/health") { const stuck = o.ledger.stuckNotifications(now()); return json(res, stuck ? 503 : 200, { ok: !stuck }); } // 503 when a lead notification has not gone out for an hour or has run out of retries, so a monitor sees a silent failure; no counts are given to a stranger
 
       if (req.method === "POST" && (url.pathname === "/callrail/post-call" || url.pathname === "/callrail/form")) {
         const raw = await readBody(req, max);
@@ -122,8 +126,13 @@ export function createReceiver(o: ReceiverOptions): Server {
           firstTime: null, trackingNumber: null, raw: { form: "quote", landing_page: landing, service: line("service", 80) || null, area: line("area", 80) || null },
           consentVersion: line("consent_text_version", 40) || "none", marketingOptIn: f("marketing_opt_in") === "yes", measurementOptIn: measure, clickAt,
         };
-        const r = o.ledger.insert(ev, now());
-        if (r.inserted || !o.ledger.hasOutbox(r.id)) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${pageWithoutQuery(landing)}` : ""}` }, now());
+        // the lead and its notification are stored together or not at all, so a failure part way can never leave a lead nobody was told about
+        o.ledger.transaction(() => {
+          const r = o.ledger.insert(ev, now());
+          if (r.inserted || !o.ledger.hasOutbox(r.id)) o.ledger.enqueue(r.id, "email", { to: o.ownerEmail, subject: `New quote request from ${name}`, text: `${name}\n${phone}\n${email}\n\n${message}${landing ? `\n\nPage: ${pageWithoutQuery(landing)}` : ""}` }, now());
+          // a retry of the same submission with the advertising box now unticked is the visitor changing their mind: honour it
+          if (!r.inserted && !measure) o.ledger.withdrawMeasurement(r.id);
+        });
         return json(res, 200, { ok: true }, origin);
       }
       return json(res, 404, { error: "not found" });

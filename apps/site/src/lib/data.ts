@@ -8,7 +8,7 @@ const QUERY = `{
   "materials": *[_type == "material"] | order(name){ name, "slug": slug.current, summary },
   "neighbourhoods": *[_type == "neighbourhood"] | order(name){ name, "slug": slug.current, city, facts },
   "projects": *[_type == "project" && !(_id in path("drafts.**"))] | order(completedOn desc){
-    "id": _id, featured, title, "slug": slug.current, summary, "neighbourhoodSlug": neighbourhood->slug.current, roofType,
+    "id": _id, "createdAt": _createdAt, "updatedAt": _updatedAt, featured, title, "slug": slug.current, summary, "neighbourhoodSlug": neighbourhood->slug.current, roofType,
     "serviceSlugs": services[]->slug.current, "materialSlugs": materials[]->slug.current,
     manufacturer, colour, existingConditions, challenges, solution, outcome, completedOn, squareFeet, durationDays,
     "photos": photos[]{ "id": _key, "file": asset->url, alt, caption, stage, "width": asset->metadata.dimensions.width, "height": asset->metadata.dimensions.height },

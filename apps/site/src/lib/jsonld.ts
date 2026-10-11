@@ -1,7 +1,6 @@
 // Structured data. Only types Google documents, only values that are visible on the page. No FAQ markup (rich results retired 2026-05), no self-review stars.
 import type { Business, Page, Project, Service, Dataset } from "@lab/content";
 import { imgUrl } from "./img.ts";
-import { BUILD_DATE } from "./dates.ts";
 
 const abs = (b: Business, url: string) => new URL(url, b.url).toString();
 // Google reads each page on its own, so a page that names the business names it in full instead of pointing at an @id that is only defined on the home page
@@ -39,8 +38,9 @@ export function projectArticle(b: Business, p: Project) {
     "@type": "Article",
     headline: p.title,
     description: p.summary,
-    datePublished: BUILD_DATE,
-    dateModified: BUILD_DATE,
+    // real dates from the CMS only; a page never claims a date nobody recorded
+    ...(p.createdAt ? { datePublished: p.createdAt.slice(0, 10) } : {}),
+    ...(p.updatedAt ? { dateModified: p.updatedAt.slice(0, 10) } : {}),
     author: org(b),
     publisher: org(b),
     mainEntityOfPage: abs(b, `/projects/${p.slug}/`),
@@ -49,13 +49,14 @@ export function projectArticle(b: Business, p: Project) {
 }
 
 export function videoObjects(b: Business, p: Project) {
+  if (!p.createdAt) return []; // uploadDate is required for a video, and with no recorded date the markup is left out
   return p.videos.map((v) => ({
     "@context": "https://schema.org",
     "@type": "VideoObject",
     name: v.title,
     description: `${v.title}, part of the project: ${p.title}`,
     thumbnailUrl: v.poster.startsWith("http") ? imgUrl(v.poster, 800) : imgUrl(p.photos.find((x) => x.id === v.poster)?.file ?? "", 800),
-    uploadDate: BUILD_DATE,
+    uploadDate: p.createdAt.slice(0, 10),
     contentUrl: v.file.startsWith("http") ? v.file : abs(b, `/videos/${v.file}`),
     duration: `PT${v.durationSeconds}S`,
   }));

@@ -69,21 +69,32 @@ export class Ledger {
       }
     }
     // ON CONFLICT, not check-then-insert: a webhook and the nightly reconcile can race for the same call, and the loser must read "already stored", not throw.
-    const r = this.db.prepare(`INSERT INTO leads (kind, source_event_id, occurred_at, received_at, phone_e164, email_sha256, landing_page_url, source, medium, campaign, utm_source, utm_medium, utm_campaign, gclid, wbraid, gbraid, msclkid, ga_client_id, first_time, consent_version, marketing_opt_in, raw_json)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (kind, source_event_id) DO NOTHING`).run(
+    const r = this.db.prepare(`INSERT INTO leads (kind, source_event_id, occurred_at, received_at, phone_e164, email_sha256, landing_page_url, source, medium, campaign, utm_source, utm_medium, utm_campaign, gclid, wbraid, gbraid, msclkid, ga_client_id, first_time, consent_version, marketing_opt_in, raw_json, click_at, tracking_number, measurement_opt_in)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (kind, source_event_id) DO NOTHING`).run(
       e.kind, e.sourceEventId, e.occurredAt, now.toISOString(), e.phoneE164, e.email ? sha256(normaliseEmail(e.email)) : null, e.landingPageUrl, e.source, e.medium, e.campaign,
       e.utm.source ?? null, e.utm.medium ?? null, e.utm.campaign ?? null, e.gclid ?? null, e.wbraid ?? null, e.gbraid ?? null, e.msclkid ?? null, e.gaClientId ?? null,
-      e.firstTime === null ? null : e.firstTime ? 1 : 0, e.consentVersion ?? null, e.marketingOptIn ? 1 : 0, JSON.stringify(redact(e.raw)));
+      e.firstTime === null ? null : e.firstTime ? 1 : 0, e.consentVersion ?? null, e.marketingOptIn ? 1 : 0, JSON.stringify(redact(e.raw)),
+      e.clickAt ?? null, e.trackingNumber ?? null, e.measurementOptIn === undefined ? null : e.measurementOptIn ? 1 : 0); // one statement: a lead is never stored with its click id but without its consent flag
     if (Number(r.changes) === 0) {
       const existing = this.db.prepare("SELECT id FROM leads WHERE kind = ? AND source_event_id = ?").get(e.kind, e.sourceEventId) as { id: number };
       return { inserted: false, id: existing.id };
     }
-    const id = Number(r.lastInsertRowid);
-    if (e.clickAt) this.db.prepare("UPDATE leads SET click_at = ? WHERE id = ?").run(e.clickAt, id);
-    if (e.trackingNumber) this.db.prepare("UPDATE leads SET tracking_number = ? WHERE id = ?").run(e.trackingNumber, id);
-    if (e.measurementOptIn !== undefined) this.db.prepare("UPDATE leads SET measurement_opt_in = ? WHERE id = ?").run(e.measurementOptIn ? 1 : 0, id);
-    return { inserted: true, id };
+    return { inserted: true, id: Number(r.lastInsertRowid) };
   }
+
+  /** Run several statements as one: either all of them are stored or none (a lead and its notification, for instance). */
+  transaction<T>(fn: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    this.inTx = true;
+    try {
+      const out = fn();
+      this.db.exec("COMMIT");
+      this.inTx = false;
+      if (this.needsScrub) this.needsScrub = !this.scrub(); // a scrub asked for inside the transaction could not run until it ended
+      return out;
+    } catch (e) { this.inTx = false; try { this.db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw e; }
+  }
+  private inTx = false;
 
   get(id: number): LeadRow | undefined { return this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined; }
   all(): LeadRow[] { return this.db.prepare("SELECT * FROM leads ORDER BY id").all() as unknown as LeadRow[]; }
@@ -108,6 +119,25 @@ export class Ledger {
     }
     this.needsScrub = !this.scrub();
     return true;
+  }
+
+  /** Notifications that did not go out: out of retries, or still unsent an hour after they were due. A health check turns this into an alert, because the visitor was already told the request arrived. */
+  stuckNotifications(now = new Date(), graceMinutes = 60): number {
+    const cutoff = new Date(now.getTime() - graceMinutes * 60000).toISOString();
+    return Number((this.db.prepare("SELECT COUNT(*) c FROM outbox WHERE sent_at IS NULL AND (attempts >= 12 OR next_attempt_at < ?)").get(cutoff) as { c: number }).c);
+  }
+
+  /** Remove one person's quote request entirely (the privacy page promises deletion on request): the lead, its notifications and everything in the file and its log. Returns false for an unknown id. */
+  deleteLead(id: number): boolean {
+    this.db.prepare("DELETE FROM outbox WHERE lead_id = ?").run(id);
+    const r = this.db.prepare("DELETE FROM leads WHERE id = ?").run(id);
+    this.needsScrub = !this.scrub();
+    return Number(r.changes) > 0;
+  }
+
+  /** Record that one person withdrew their marketing email consent. This code sends no marketing email; whatever does must read marketing_opt_in. */
+  withdrawMarketing(id: number): boolean {
+    return Number(this.db.prepare("UPDATE leads SET marketing_opt_in = 0 WHERE id = ? AND kind = 'form'").run(id).changes) > 0;
   }
 
   /** True when a notification row exists for this lead (sent or not): a retried submission must not leave a stored lead that nobody was told about. */
@@ -151,6 +181,7 @@ export class Ledger {
   /** Set when a scrub could not finish (another connection was reading), so the next purge retries it even if it has nothing new to delete. */
   private needsScrub = false;
   scrub(): boolean {
+    if (this.inTx) return false; // a checkpoint cannot run inside a transaction; it is retried when the transaction ends
     const r = this.db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy?: number } | undefined;
     return !r || r.busy === 0;
   }

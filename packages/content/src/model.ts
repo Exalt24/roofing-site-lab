@@ -31,6 +31,8 @@ export interface Project {
   slug: string;
   status: "draft" | "published";
   featured?: boolean; // shown first on the home page; its first photo is the hero
+  createdAt?: string; // when the document was first made in the CMS, from Sanity; unknown for fixture data, in which case no date is claimed
+  updatedAt?: string; // when it was last changed in the CMS
   title: string;
   summary: string;
   neighbourhoodSlug: string;

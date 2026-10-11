@@ -31,16 +31,15 @@ test("structured data stands on its own: no page references an @id that it does 
   }
 });
 
-test("article, video and sitemap dates are the build day, not a job finish date", () => {
+test("MUTANT: no page claims a date nobody recorded: with fixture data (no CMS dates) there is no datePublished, no dateModified, no VideoObject and no sitemap lastmod", () => {
   const sm = readFileSync(join(out, "sitemap.xml"), "utf8");
-  const lastmods = [...new Set([...sm.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]))];
-  assert.equal(lastmods.length, 1, "every sitemap entry carries the same build day");
-  let articles = 0, videos = 0;
+  assert.equal(/<lastmod>/.test(sm), false, "a rebuild changes no page, so the sitemap carries no lastmod without a CMS date");
+  let articles = 0;
   for (const p of pages) for (const n of nodesOf(p.html)) {
-    if (n["@type"] === "Article") { articles++; assert.equal(n.datePublished, lastmods[0], p.file); assert.equal(n.dateModified, lastmods[0], p.file); assert.equal(n.author["@type"], "RoofingContractor"); }
-    if (n["@type"] === "VideoObject") { videos++; assert.equal(n.uploadDate, lastmods[0], p.file); }
+    if (n["@type"] === "Article") { articles++; assert.equal("datePublished" in n, false, p.file); assert.equal("dateModified" in n, false, p.file); assert.equal(n.author["@type"], "RoofingContractor"); }
+    assert.notEqual(n["@type"], "VideoObject", p.file + ": a video with no recorded upload date gets no markup");
   }
-  assert.ok(articles >= 11 && videos >= 1);
+  assert.ok(articles >= 11);
 });
 
 test("MUTANT: the areas page says a neighbourhood with a finished job but no area page has a job, and says plainly which neighbourhood has no finished project at all", () => {
