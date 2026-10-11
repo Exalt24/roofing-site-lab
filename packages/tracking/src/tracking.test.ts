@@ -255,6 +255,40 @@ test("MUTANT: a withdrawal blocked by a reader is retried by the next purge even
   await t.close();
 });
 
+test("MUTANT: every ad field is dropped without the box (wbraid, gbraid, campaign too), and a database made before the newer columns existed is upgraded when opened", async () => {
+  const t = await boot();
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ submission_id: "pf1", measurement_opt_in: "no", wbraid: "WB", gbraid: "GB", utm_campaign: "CAMP", utm_medium: "cpc", click_time: new Date().toISOString() }) });
+  const row = t.ledger.all()[0];
+  for (const k of ["gclid", "wbraid", "gbraid", "ga_client_id", "landing_page_url", "utm_source", "utm_medium", "utm_campaign", "click_at", "source", "medium", "campaign"] as const) assert.equal(row[k], null, k);
+  assert.equal(row.measurement_opt_in, 0);
+  await t.close();
+
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { DatabaseSync } = await import("node:sqlite");
+  const dir = mkdtempSync(join(tmpdir(), "mg-"));
+  const file = join(dir, "old.sqlite");
+  try {
+    const old = new DatabaseSync(file);
+    old.exec(`CREATE TABLE leads (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, source_event_id TEXT NOT NULL, occurred_at TEXT NOT NULL, received_at TEXT NOT NULL, phone_e164 TEXT, email_sha256 TEXT, landing_page_url TEXT,
+      source TEXT, medium TEXT, campaign TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, gclid TEXT, wbraid TEXT, gbraid TEXT, msclkid TEXT, ga_client_id TEXT, first_time INTEGER,
+      stage TEXT NOT NULL DEFAULT 'new', estimate_value REAL, sold_value REAL, sold_at TEXT, consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0, raw_json TEXT NOT NULL, UNIQUE (kind, source_event_id));
+      CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER NOT NULL, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, sent_at TEXT, last_error TEXT, claimed_at TEXT);
+      INSERT INTO leads (kind, source_event_id, occurred_at, received_at, phone_e164, raw_json) VALUES ('form', 'old-1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', '+16045550111', '{}');`);
+    old.close();
+    const l = new Ledger(file);
+    const r = l.get(1)!;
+    assert.ok("click_at" in r && "tracking_number" in r && "measurement_opt_in" in r, "the three newer columns exist");
+    assert.equal(r.measurement_opt_in, null, "an old form lead has no recorded measurement consent, so no Google upload can be built from it");
+    assert.equal(adsIngestEvent(r, { stage: "sold", value: 1 }).event, null);
+    const a = parseCall({ id: "CAL2S1", customer_phone_number: "+16045550123", start_time: "2026-10-05T10:00:00Z" });
+    const b = parseCall({ id: "999", customer_phone_number: "+16045550123", start_time: "2026-10-05T10:00:02Z" });
+    assert.equal(l.insert(a).inserted, true); assert.equal(l.insert(b).inserted, true, "a call two seconds later is a new call, not a twin");
+    l.db.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("the withdraw command deletes one lead's advertising details in a real ledger file and refuses an unknown id", async () => {
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, rmSync } = await import("node:fs");

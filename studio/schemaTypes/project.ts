@@ -33,7 +33,7 @@ export const project = defineType({
     defineField({name: 'durationDays', type: 'number', group: 'basics', validation: (r) => r.min(1).max(120)}),
     defineField({name: 'existingConditions', title: 'What the roof was like before', type: 'text', rows: 3, group: 'story'}),
     defineField({name: 'challenges', title: 'What was hard about it', type: 'text', rows: 4, group: 'story', validation: (r) => r.required().min(40)}),
-    defineField({name: 'solution', title: 'What we installed and why', type: 'text', rows: 4, group: 'story', validation: (r) => r.required().min(40)}),
+    defineField({name: 'solution', title: 'The options you weighed, what you installed and why', description: 'Name the options you considered, say which one you recommended and why, then what was installed.', type: 'text', rows: 5, group: 'story', validation: (r) => r.required().min(40)}),
     defineField({name: 'outcome', title: 'The result', type: 'text', rows: 3, group: 'story'}),
     defineField({
       name: 'photos',

@@ -92,7 +92,7 @@ const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/p
       {project.videos.map((v) => <figure><video controls preload="none" poster={posterUrl(v.poster, project.photos)} width="1280" height="720"><source src={v.file.startsWith("http") ? v.file : `/videos/${v.file}`} type="video/mp4" /></video><figcaption class="muted">{v.title} ({v.durationSeconds} seconds)</figcaption></figure>)}
       {project.existingConditions && <><h2>What the roof was like</h2><p>{project.existingConditions}</p></>}
       <h2>What made it hard</h2><p>{project.challenges}</p>
-      <h2>What we installed, and why</h2><p>{project.solution}</p>
+      <h2>The options we weighed, and what we installed</h2><p>{project.solution}</p>
       <h2>The result</h2><p>{project.outcome}</p>
       {project.review?.consent && <blockquote>“{project.review.quote}”<br /><span class="muted">{project.review.author}</span></blockquote>}
       {relatedLinks.length > 0 && <p>{relatedLinks.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>}
