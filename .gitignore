@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-sim/
+.astro/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.*
+qa/
+.wrangler/
+.sanity/
+*.log
+dist-pages/

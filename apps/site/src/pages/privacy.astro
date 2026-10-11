@@ -1,0 +1,30 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadDataset } from "../lib/data.ts";
+const ds = await loadDataset();
+const name = ds.business.legalName;
+---
+<Base title={`Privacy | ${ds.business.name.replace(" (sample)", "")}`} description="What personal information this site collects, why, who handles it, how long it is kept and how to ask for it or have it removed." canonical="/privacy/" business={ds.business}>
+  <div class="section story">
+    <h1>Privacy</h1>
+    <p class="muted">Sample page, version privacy-2026-10. It follows the headings the BC Information and Privacy Commissioner asks for in a privacy policy under the Personal Information Protection Act. It is a starting point for a lawyer to review, not legal advice.</p>
+    <h2>Who is responsible</h2>
+    <p>{name} is responsible for the personal information it collects. Privacy officer: Office Manager, <a href={`mailto:${ds.business.email}`}>{ds.business.email}</a>.</p>
+    <h2>What we collect and why</h2>
+    <p>When you ask for a quote we collect your name, phone number, optionally your email and neighbourhood, and what you tell us about the roof. We use it to prepare your quote and to contact you about it. We also record which page you came from and, if you arrived from an advertisement, the advertisement's click identifier, so we can tell which marketing works.</p>
+    <h2>Phone calls</h2>
+    <p>Calls to the tracking numbers on this site are recorded. A short announcement tells you so at the start of the call. We use the recording to prepare your estimate and to check the quality of our service. If you would rather not be recorded, use the contact form or call the number in the footer, which is not recorded.</p>
+    <h2>Who handles it for us</h2>
+    <p>Call tracking and call recording: CallRail. Website analytics and advertising measurement: Google (Analytics, Tag Manager and Ads). Hosting: Cloudflare. Content management: Sanity. Drafting of project descriptions from the crew's job notes and photographs: by default software running on the company's own computer, so nothing leaves the building. If the company chooses a hosted AI service instead, that provider receives the job notes and photographs the crew entered. Customer names, phone numbers, email addresses and street addresses are not part of what is sent, and the draft is checked for them before anyone reads it, but the crew's free-text notes are typed by people, so the crew is told not to put them there. The hosted provider named in the setup keeps inputs for up to 30 days and does not use them for training.</p>
+    <h2>Cookies and advertising</h2>
+    <p>This site uses cookies and similar technology for analytics and, if you arrive from an advertisement, for measuring it. You can turn off personalised advertising in your Google account's ad settings at any time.</p>
+    <h2>Marketing email</h2>
+    <p>We only send promotional email if you tick the separate box on the quote form. Every email has an unsubscribe link, and we stop within 10 business days of a request.</p>
+    <h2>Photos and reviews</h2>
+    <p>We publish photographs of finished work and show neighbourhoods, not street addresses. We only show a customer's name, photo or review with their written permission.</p>
+    <h2>How long we keep it</h2>
+    <p>Quote requests and call records: 24 months, then deleted. Call recordings held by CallRail are deleted automatically after 25 months at the latest.</p>
+    <h2>Your access and corrections</h2>
+    <p>You can ask to see the information we hold about you, to correct it, or to have it deleted, by emailing the privacy officer above.</p>
+  </div>
+</Base>

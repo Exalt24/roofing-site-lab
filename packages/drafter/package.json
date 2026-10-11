@@ -1,0 +1,16 @@
+{
+  "name": "@lab/drafter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "node --test src/*.test.ts",
+    "eval": "node evals/run.ts"
+  },
+  "dependencies": {
+    "@lab/content": "*",
+    "@sanity/client": "^8.9.0",
+    "sharp": "^0.35.5"
+  }
+}

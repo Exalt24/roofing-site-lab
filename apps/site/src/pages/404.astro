@@ -1,0 +1,14 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadDataset } from "../lib/data.ts";
+const ds = await loadDataset();
+const phone = ds.business.telephone.replace(/^\+1-/, "").replace("-", " ");
+---
+<Base title={`Page not found | ${ds.business.name.replace(" (sample)", "")}`} description="That page does not exist." canonical="/404/" business={ds.business} noindex>
+  <div class="section">
+    <h1>We could not find that page</h1>
+    <p>The link may be old or mistyped. These are good places to start:</p>
+    <p><a class="pill" href="/projects/">Completed projects</a> <a class="pill" href="/services/">Services</a> <a class="pill" href="/areas/">Areas</a> <a class="pill" href="/contact/">Free quote</a></p>
+    <p>Or call <a href={`tel:${ds.business.telephone}`} data-track="click_to_call">{phone}</a>.</p>
+  </div>
+</Base>

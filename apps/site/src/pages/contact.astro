@@ -1,0 +1,67 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadDataset } from "../lib/data.ts";
+const ds = await loadDataset();
+const endpoint = import.meta.env.PUBLIC_LEAD_ENDPOINT ?? "";
+const connected = endpoint !== "";
+const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
+---
+<Base title={`Free quote | ${ds.business.name.replace(" (sample)", "")}`} description="Ask for a free roofing quote. Tell us what you are seeing and we will reply the same business day." canonical="/contact/" business={ds.business}>
+  <div class="section">
+    <h1>Get a free quote</h1>
+    <p>Prefer to talk? Call <a href={`tel:${ds.business.telephone}`} data-track="click_to_call">{ds.business.telephone.replace(/^\+1-/, "").replace("-", " ")}</a>.</p>
+    {!connected && <p class="notice" role="note"><strong>Sample site:</strong> this quote form is not connected to a lead receiver, so nothing typed here is sent or stored. The receiver is built and tested in the repository but is not deployed for this demo.</p>}
+    <form class="lead" method="post" action={connected ? endpoint : undefined} id="lead-form" data-connected={connected ? "yes" : "no"}>
+      <label>Your name<input name="name" autocomplete="name" required /></label>
+      <label>Phone<input name="phone" type="tel" autocomplete="tel" required /></label>
+      <label>Email<input name="email" type="email" autocomplete="email" /></label>
+      <label>What do you need?
+        <select name="service">
+          <option value="">Not sure yet</option>
+          <option>Leak or repair</option><option>New roof</option><option>Skylight</option><option>Flat roof</option><option>Solar</option><option>Cedar roof</option>
+        </select>
+      </label>
+      <label>Neighbourhood or city (optional)<input name="area" autocomplete="address-level2" /></label>
+      <label>What is going on with the roof?<textarea name="message" rows="4" required></textarea></label>
+      <label class="check"><input type="checkbox" name="marketing_opt_in" value="yes" /> Email me occasional roofing tips and offers (optional, you can unsubscribe at any time)</label>
+      <input type="hidden" name="consent_text_version" value="privacy-2026-10" />
+      <input type="hidden" name="submission_id" value="" />
+      <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+      <input type="hidden" name="landing_page" value="" />
+      <input type="hidden" name="gclid" value="" />
+      <input type="hidden" name="wbraid" value="" />
+      <input type="hidden" name="gbraid" value="" />
+      <input type="hidden" name="utm_source" value="" />
+      <input type="hidden" name="utm_medium" value="" />
+      <input type="hidden" name="utm_campaign" value="" />
+      <input type="hidden" name="ga_client_id" value="" />
+      {turnstile && <div class="cf-turnstile" data-sitekey={turnstile}></div>}
+      {turnstile && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
+      <p class="muted small-print">We use your name, phone number, email and the details above to prepare your quote and to contact you about it, and we keep them for 24 months. See our <a href="/privacy/">privacy page</a>.</p>
+      <button class="btn" type="submit" disabled={!connected}>{connected ? "Send" : "Not connected in this sample"}</button>
+      <p class="muted small-print" id="lead-status" role="status"></p>
+    </form>
+  </div>
+  <script is:inline>
+    (function () {
+      var f = document.getElementById("lead-form");
+      var q = new URLSearchParams(location.search);
+      ["gclid", "wbraid", "gbraid", "utm_source", "utm_medium", "utm_campaign"].forEach(function (k) { if (q.get(k)) { f.elements[k].value = q.get(k); try { sessionStorage.setItem("lab_" + k, q.get(k)); } catch (e) {} } else { try { f.elements[k].value = sessionStorage.getItem("lab_" + k) || ""; } catch (e) {} } });
+      f.elements["landing_page"].value = location.href;
+      function newId() { if (window.crypto && crypto.randomUUID) f.elements["submission_id"].value = crypto.randomUUID(); }
+      newId();
+      var m = document.cookie.match(/(?:^|; )_ga=GA\d\.\d\.(\d+\.\d+)/);
+      if (m) f.elements["ga_client_id"].value = m[1];
+      f.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (f.dataset.connected !== "yes") return;
+        var s = document.getElementById("lead-status");
+        s.textContent = "Sending...";
+        fetch(f.action, { method: "POST", body: new FormData(f) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+          if (res.ok) { s.textContent = "Thanks, we have it and will call you back the same business day."; (window.dataLayer = window.dataLayer || []).push({ event: "generate_lead", form_id: "quote" }); f.reset(); newId(); }
+          else s.textContent = "That did not go through: " + (res.j.error || "please call us instead") + ".";
+        }).catch(function () { s.textContent = "That did not go through, please call us instead."; });
+      });
+    })();
+  </script>
+</Base>

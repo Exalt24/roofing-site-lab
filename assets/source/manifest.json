@@ -1,0 +1,72 @@
+[
+ {
+  "id": "hero-metal-dusk",
+  "prompt": "modern west coast house with a dark standing seam metal roof at dusk, evergreen forest and mountains behind, warm interior lights",
+  "seed": 7000
+ },
+ {
+  "id": "metal-standing-seam-west-van",
+  "prompt": "charcoal standing seam metal roof on a contemporary house, vertical seams, clean ridge cap, pacific northwest garden",
+  "seed": 7001
+ },
+ {
+  "id": "asphalt-shingle-replacement",
+  "prompt": "freshly installed architectural asphalt shingle roof in weathered grey on a two storey family home, tidy ridge, gutters",
+  "seed": 7002
+ },
+ {
+  "id": "cedar-shake-craftsman",
+  "prompt": "new cedar shake roof on a craftsman style house, warm brown cedar, stone chimney, pacific northwest trees",
+  "seed": 7003
+ },
+ {
+  "id": "cedar-before-moss",
+  "prompt": "old weathered cedar shake roof thickly covered in moss and dark staining, worn edges, overcast day",
+  "seed": 7004
+ },
+ {
+  "id": "flat-roof-tpo",
+  "prompt": "white TPO membrane flat roof on a modern house, seams welded, drain and parapet detail, clear day",
+  "seed": 7005
+ },
+ {
+  "id": "flat-torch-on",
+  "prompt": "dark torch-on modified bitumen flat roof over a small deck, neat overlaps, sealed edges",
+  "seed": 7006
+ },
+ {
+  "id": "skylight-flashing",
+  "prompt": "skylight on a pitched roof with clean flashing and curb, asphalt shingles around it, blue sky",
+  "seed": 7007
+ },
+ {
+  "id": "solar-array-gable",
+  "prompt": "rooftop solar panel array on a south facing gable roof, black panels, aluminium frames, mountains and ocean in the far distance",
+  "seed": 7008
+ },
+ {
+  "id": "complex-roof-valleys",
+  "prompt": "complicated residential roof with several valleys, dormers and hips, composite slate shingles, three quarter aerial view",
+  "seed": 7009
+ },
+ {
+  "id": "composite-slate-detail",
+  "prompt": "close up of composite synthetic slate roofing tiles in dark grey, clean edge and overlap",
+  "seed": 7010
+ },
+ {
+  "id": "valley-flashing-detail",
+  "prompt": "close up of a roof valley with metal flashing and shingle overlap, clean and tight",
+  "seed": 7011
+ },
+ {
+  "id": "chimney-step-flashing",
+  "prompt": "brick chimney with step flashing and counter flashing on an asphalt shingle roof, sealed neatly",
+  "seed": 7012
+ },
+ {
+  "id": "ridge-vent-detail",
+  "prompt": "ridge cap and ridge vent on a new asphalt shingle roof, straight lines, clear sky",
+  "seed": 7013
+ }
+]

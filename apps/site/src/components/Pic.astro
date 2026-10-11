@@ -1,0 +1,19 @@
+---
+// One responsive image. The hero passes priority so the LCP image is fetched early and never lazy-loaded.
+import { imgUrl, srcset } from "../lib/img.ts";
+interface Props { file: string; alt: string; width: number; height: number; sizes?: string; priority?: boolean; class?: string }
+const { file, alt, width, height, sizes = "(min-width: 900px) 800px, 100vw", priority = false, class: cls } = Astro.props;
+const set = srcset(file);
+---
+<img
+  src={imgUrl(file, 800)}
+  srcset={set || undefined}
+  sizes={set ? sizes : undefined}
+  alt={alt}
+  width={width}
+  height={height}
+  class={cls}
+  decoding={priority ? "sync" : "async"}
+  loading={priority ? "eager" : "lazy"}
+  fetchpriority={priority ? "high" : "auto"}
+/>

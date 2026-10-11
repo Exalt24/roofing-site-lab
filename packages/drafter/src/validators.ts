@@ -1,0 +1,186 @@
+// Deterministic checks in code. The model's own citations are pointers, never proof: every one of these is re-derived from the entered facts.
+import { similarity } from "@lab/content";
+import { buildFacts, missingSlots } from "./facts.ts";
+import { shapeErrors } from "./schema.ts";
+import type { Context, Draft, Fact, Intake, Report, SectionKey } from "./types.ts";
+
+const SECTION_FACT_LABEL: Record<SectionKey, string> = { existingConditions: "what the roof was like before", challenges: "what was hard", solution: "what was installed", outcome: "the result" };
+const SECTION_INTAKE: Record<SectionKey, keyof Intake> = { existingConditions: "existingConditions", challenges: "whatWasHard", solution: "whatWeDid", outcome: "outcome" };
+
+export const BANNED = /\b(guarantee[ds]?|guaranty|warrant(?:y|ies)|lifetime|best in|number one|cheapest|lowest price|fully insured|licensed|certified|award[- ]winning|years of experience|storm[- ]proof|leak[- ]proof|never leak)\b|#1/i;
+export const MATERIAL_LEXICON = ["standing seam", "standing-seam", "cedar", "shake", "shingle", "asphalt", "slate", "composite", "synthetic", "tpo", "epdm", "pvc", "torch-on", "bitumen", "membrane", "steel", "aluminium", "aluminum", "copper", "zinc", "clay", "tile", "metal", "solar panel", "fibreglass", "fiberglass"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function hasWord(hay: string, needle: string): boolean {
+  let i = hay.indexOf(needle);
+  while (i !== -1) {
+    const before = hay[i - 1] ?? " ";
+    const after = hay[i + needle.length] ?? " ";
+    if (!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return true;
+    i = hay.indexOf(needle, i + 1);
+  }
+  return false;
+}
+
+const numbersOf = (s: string): string[] => (s.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((x) => x.replace(/,/g, ""));
+const lc = (s: string) => s.toLowerCase();
+
+export function draftText(d: Draft): string {
+  return [d.title, d.summary, ...d.sections.map((s) => s.body), d.seo.title, d.seo.description, ...d.photos.flatMap((p) => [p.alt, p.caption]), ...d.internalLinkSuggestions.flatMap((l) => [l.anchor, l.why])].join("\n");
+}
+
+function properNames(text: string): string[] {
+  const out = new Set<string>();
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    const toks = sentence.split(/\s+/).filter(Boolean);
+    for (let i = 1; i < toks.length; i++) {
+      const m = toks[i].replace(/[^A-Za-z'’-]/g, "");
+      if (/^[A-Z][a-z]{2,}/.test(m)) {
+        let name = m; let j = i + 1;
+        while (j < toks.length && /^[A-Z][a-z]{2,}/.test(toks[j].replace(/[^A-Za-z'’-]/g, ""))) { name += " " + toks[j].replace(/[^A-Za-z'’-]/g, ""); j++; }
+        out.add(name);
+        i = j - 1;
+      }
+    }
+    for (const a of sentence.match(/\b[A-Z]{2,6}\b/g) ?? []) out.add(a);
+  }
+  return [...out];
+}
+
+/** The customer details that must never appear in public text, split into the pieces a draft could repeat on their own. */
+export function privateBits(intake: Intake): string[] {
+  const pv = intake.private;
+  return [...pv.customerName.split(/\s+/), ...pv.streetAddress.split(/[,\s]+/).filter((x) => x.length > 3 || /\d/.test(x)), pv.email, ...(pv.phone.match(/\d{3,}/g) ?? [])].filter((x) => x.length >= 3);
+}
+
+/** The free-text boxes an employee types into reach the model. A customer's name, phone, email or street address typed there would be sent out, so the intake is refused BEFORE any model call and the employee is told which box to fix. */
+export function inputPrivacyProblems(intake: Intake): string[] {
+  const boxes: [string, string | null | undefined][] = [
+    ["existing conditions", intake.existingConditions], ["what was hard", intake.whatWasHard], ["what we did", intake.whatWeDid], ["outcome", intake.outcome], ["staff notes", intake.staffNotes],
+    ...intake.photos.map((p, i): [string, string | null | undefined] => [`caption of photo ${i + 1}`, p.staffCaption]),
+  ];
+  const out: string[] = [];
+  const bits = privateBits(intake);
+  for (const [label, value] of boxes) {
+    if (!value) continue;
+    const t = value.toLowerCase();
+    for (const b of bits) if (hasWord(t, b.toLowerCase())) out.push(`"${b}" (a customer detail) is typed in the ${label} box`);
+    if (/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/.test(value)) out.push(`a phone number is typed in the ${label} box`);
+    if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(value)) out.push(`an email address is typed in the ${label} box`);
+    if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(value)) out.push(`a street address is typed in the ${label} box`);
+  }
+  return out;
+}
+
+export function validateDraft(draft: unknown, intake: Intake, ctx: Context): Report {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const shape = shapeErrors(draft);
+  if (shape.length) return { ok: false, errors: shape, warnings };
+  const d = draft as Draft;
+  const facts = buildFacts(intake, ctx);
+  const byId = new Map<string, Fact>(facts.map((f) => [f.id, f]));
+  const entered = facts.filter((f) => f.kind === "entered");
+  const enteredText = lc(entered.map((f) => f.value).join("\n") + "\n" + ctx.services.map((s) => s.name).join(" ") + " " + ctx.materials.filter((m) => intake.materialSlugs.includes(m.slug)).map((m) => m.name).join(" "));
+  const text = draftText(d);
+
+  // 1. sections: only for slots the employee filled, each citing the matching entered field
+  for (const key of Object.keys(SECTION_FACT_LABEL) as SectionKey[]) {
+    const slot = intake[SECTION_INTAKE[key]];
+    const filled = typeof slot === "string" && slot.trim().length > 0;
+    const sec = d.sections.find((s) => s.key === key);
+    if (!filled && sec) errors.push(`section "${key}" was written but the employee never entered that detail (invented content)`);
+    if (filled && !sec) errors.push(`section "${key}" is missing although the employee entered it`);
+    if (!sec) continue;
+    if (!sec.supportedBy.length) errors.push(`section "${key}" cites no source fact`);
+    for (const id of sec.supportedBy) if (!byId.has(id)) errors.push(`section "${key}" cites ${id}, which does not exist`);
+    const cited = sec.supportedBy.map((id) => byId.get(id)).filter(Boolean) as Fact[];
+    if (cited.length && cited.every((f) => f.kind === "visual")) errors.push(`section "${key}" rests only on what a vision model saw`);
+    if (filled && !cited.some((f) => lc(f.label).includes(SECTION_FACT_LABEL[key]))) errors.push(`section "${key}" does not cite the employee's own "${SECTION_FACT_LABEL[key]}" entry`);
+    // 2. numbers: each must come from an entered fact; cited facts preferred
+    const citedNums = new Set(cited.filter((f) => f.kind === "entered").flatMap((f) => numbersOf(f.value)));
+    const allNums = new Set(entered.flatMap((f) => numbersOf(f.value)));
+    for (const n of numbersOf(sec.body)) {
+      if (!allNums.has(n)) errors.push(`section "${key}" states the number ${n}, which appears in no entered fact`);
+      else if (!citedNums.has(n)) warnings.push(`section "${key}" states ${n} but cites a different fact than the one that holds it`);
+    }
+  }
+
+  // numbers anywhere else in public text
+  for (const n of numbersOf([d.title, d.summary, d.seo.title, d.seo.description, ...d.photos.flatMap((p) => [p.alt, p.caption])].join(" "))) {
+    const allNums = new Set(entered.flatMap((f) => numbersOf(f.value)));
+    if (!allNums.has(n)) errors.push(`the number ${n} appears in a title, summary, SEO text or photo text but in no entered fact`);
+  }
+
+  // 3. invented names and brands. Sentences are checked for proper nouns; Title Case headings (title, SEO title, link anchors) are not,
+  // because Title Case makes every word look like a name. Headings get a brand-shape check and a vocabulary warning instead.
+  const allowedNames = new Set([...MONTHS, ...ctx.neighbourhoods.map((n) => n.name), ...ctx.businessName.split(/\s+/), "West Vancouver", "North Vancouver", "Vancouver", "British", "Properties"].map(lc));
+  const sentences = [d.summary, ...d.sections.map((s) => s.body), d.seo.description, ...d.photos.flatMap((p) => [p.alt, p.caption]), ...d.internalLinkSuggestions.map((l) => l.why)].join("\n");
+  for (const name of properNames(sentences)) {
+    const n = lc(name);
+    if (allowedNames.has(n) || name.split(" ").every((w) => allowedNames.has(lc(w)))) continue;
+    if (!enteredText.includes(n)) errors.push(`the name "${name}" appears in the draft but nowhere in the entered facts`);
+  }
+  for (const m of text.matchAll(/\b([A-Z][a-z]{3,})(?:\s+[A-Z][a-z]+)*\s+(?:Systems|Mill|Ltd|Inc|Corp|Industries|Manufacturing|Supply|Co)\b/g)) {
+    if (!enteredText.includes(lc(m[1]))) errors.push(`the brand-like name "${m[0]}" appears in the draft but nowhere in the entered facts`);
+  }
+  const vocab = new Set(lc(enteredText).split(/[^a-z0-9']+/).filter(Boolean));
+  const stop = new Set("a an and the of in on at to for with from by new old roof roofs roofing replacement replaced repair repaired install installed installation job project fix fixed after before house home".split(" "));
+  for (const heading of [d.title, d.seo.title]) for (const w of lc(heading).split(/[^a-z0-9']+/).filter((x) => x.length > 3)) if (!vocab.has(w) && !stop.has(w) && !allowedNames.has(w)) warnings.push(`the heading "${heading}" uses "${w}", which is in no entered fact`);
+
+  // 4. invented materials
+  for (const term of MATERIAL_LEXICON) {
+    if (new RegExp(`\\b${term.replace(/[-\s]/g, "[-\\s]?")}s?\\b`, "i").test(text) && !new RegExp(term.replace(/[-\s]/g, "[-\\s]?"), "i").test(enteredText)) errors.push(`the material "${term}" appears in the draft but not in the entered facts`);
+  }
+
+  // 5. claims
+  const banned = text.match(BANNED);
+  if (banned) errors.push(`banned claim in the draft: "${banned[0]}" (warranty, guarantee, superlative and licence claims need a person to write them)`);
+  if (/ignore (all )?(previous|prior) instructions/i.test(text)) errors.push("the draft repeats an injected instruction");
+  const canary = (intake.staffNotes ?? "").match(/CANARY-[A-Z0-9]+/);
+  if (canary && text.includes(canary[0])) errors.push(`the draft contains ${canary[0]}, so it followed an instruction hidden in the staff notes`);
+
+  // 6. private data
+  for (const b of privateBits(intake)) if (hasWord(lc(text), lc(b))) errors.push(`private customer detail "${b}" appears in public text`);
+  if (/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/.test(text)) errors.push("a phone number appears in public text");
+  if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(text)) errors.push("an email address appears in public text");
+  if (/\b\d{2,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Crescent|Cres|Lane|Court|Place|Way)\b/.test(text)) errors.push("a street address appears in public text");
+
+  // 7. lengths and SEO hygiene
+  if (d.title.length < 10 || d.title.length > 110) errors.push(`title length ${d.title.length} is outside 10 to 110`);
+  if (d.summary.length > 300) errors.push(`summary is ${d.summary.length} characters, the limit is 300`);
+  if (d.seo.title.length < 20 || d.seo.title.length > 60) errors.push(`SEO title length ${d.seo.title.length} is outside 20 to 60`);
+  if (d.seo.description.length < 70 || d.seo.description.length > 155) errors.push(`SEO description length ${d.seo.description.length} is outside 70 to 155`);
+
+  // 8. photos
+  const ids = new Set(intake.photos.map((p) => p.id));
+  for (const p of d.photos) {
+    if (!ids.has(p.photoId)) errors.push(`photo ${p.photoId} is not one of the uploaded photos`);
+    if (p.alt.length < 12 || p.alt.length > 140) errors.push(`alt text for ${p.photoId} has length ${p.alt.length}, needs 12 to 140`);
+    if (/^(image|photo|picture|photograph) of\b/i.test(p.alt)) errors.push(`alt text for ${p.photoId} starts with a filler phrase`);
+    const w = lc(p.alt).split(/\W+/).filter((x) => x.length > 3);
+    if (w.some((x) => w.filter((y) => y === x).length > 2)) errors.push(`alt text for ${p.photoId} repeats a word (keyword stuffing)`);
+    if (p.caption.length > 120) errors.push(`caption for ${p.photoId} is longer than 120 characters`);
+  }
+  for (const id of ids) if (!d.photos.some((p) => p.photoId === id)) errors.push(`photo ${id} has no alt text in the draft`);
+
+  // 9. missing information is declared, never papered over
+  const declared = d.missingInformation.map(lc).join(" | ");
+  for (const label of missingSlots(intake)) if (!declared.includes(lc(label).split(" ").slice(0, 2).join(" "))) errors.push(`"${label}" was not entered and is not listed under missingInformation`);
+
+  // 10. links and relations
+  const urls = new Set(ctx.pageUrls);
+  for (const l of d.internalLinkSuggestions) if (!urls.has(l.targetUrl)) errors.push(`link suggestion points at ${l.targetUrl}, which is not a page on the site`);
+  for (const s of d.relatedServiceSlugs) if (!ctx.services.some((x) => x.slug === s)) errors.push(`unknown service slug ${s}`);
+  if (!ctx.neighbourhoods.some((n) => n.slug === d.relatedNeighbourhoodSlug)) errors.push(`unknown neighbourhood slug ${d.relatedNeighbourhoodSlug}`);
+  else if (d.relatedNeighbourhoodSlug !== intake.neighbourhoodSlug) errors.push("the draft relates the job to a different neighbourhood than the employee entered");
+
+  // 11. near-duplicate of existing pages (doorway and scaled-content risk)
+  const narrative = [d.title, d.summary, ...d.sections.map((s) => s.body)].join(" ");
+  for (const ex of ctx.existingNarratives) {
+    const s = similarity(narrative, ex.text);
+    if (s > 0.35) errors.push(`${(s * 100).toFixed(0)}% the same as the existing page ${ex.id}`);
+    else if (s > 0.2) warnings.push(`${(s * 100).toFixed(0)}% similar to the existing page ${ex.id}`);
+  }
+  return { ok: errors.length === 0, errors, warnings };
+}

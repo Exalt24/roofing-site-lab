@@ -1,0 +1,79 @@
+---
+import "../styles/site.css";
+import type { Business } from "@lab/content";
+interface Props { title: string; description: string; canonical: string; business: Business; jsonld?: unknown[]; preloadImage?: string; ogImage?: string; noindex?: boolean; showCredentials?: boolean }
+const { title, description, canonical, business, jsonld = [], preloadImage, ogImage, noindex = false, showCredentials = true } = Astro.props;
+// ids and script addresses are pasted into inline script text, so only the documented shapes are accepted; anything else is ignored rather than injected
+const gtmRaw = import.meta.env.PUBLIC_GTM_ID;
+const gtm = typeof gtmRaw === "string" && /^GTM-[A-Z0-9]{4,12}$/.test(gtmRaw) ? gtmRaw : undefined;
+const callrailRaw = import.meta.env.PUBLIC_CALLRAIL_SCRIPT;
+const callrail = typeof callrailRaw === "string" && /^((https:)?\/\/[A-Za-z0-9.-]+)?\/[A-Za-z0-9._\/-]+\.js$/.test(callrailRaw) ? callrailRaw : undefined;
+const indexable = import.meta.env.PUBLIC_NOINDEX !== "true" && !noindex;
+const ogAbs = ogImage ? new URL(ogImage, business.url).toString() : undefined;
+const gtmSnippet = gtm ? `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');` : "";
+const callrailSnippet = callrail ? `(function(){var s=document.createElement('script');s.async=true;s.src='${callrail}';document.head.appendChild(s);})();` : "";
+const clickSnippet = `document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[data-track='click_to_call']"):null;if(!a)return;(window.dataLayer=window.dataLayer||[]).push({event:"click_to_call",link_location:a.closest("header")?"header":a.closest("footer")?"footer":a.closest(".sticky-bar")?"sticky_bar":"page"});});`;
+const abs = new URL(canonical, business.url).toString();
+const phoneText = business.telephone.replace(/^\+1-/, "").replace("-", " ");
+const gsc = import.meta.env.PUBLIC_GSC_TOKEN;
+const bing = import.meta.env.PUBLIC_BING_TOKEN;
+---
+<!doctype html>
+<html lang="en-CA">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={abs} />
+    {!indexable && <meta name="robots" content="noindex" />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={business.name.replace(" (sample)", "")} />
+    <meta property="og:locale" content="en_CA" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={abs} />
+    {ogAbs && <meta property="og:image" content={ogAbs} />}
+    <meta name="twitter:card" content={ogAbs ? "summary_large_image" : "summary"} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {ogAbs && <meta name="twitter:image" content={ogAbs} />}
+    {gsc && <meta name="google-site-verification" content={gsc} />}
+    {bing && <meta name="msvalidate.01" content={bing} />}
+    {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {jsonld.map((j) => <script type="application/ld+json" set:html={JSON.stringify(j).replace(/</g, "\\u003c")} />)}
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/">{business.name.replace(" (sample)", "")}</a>
+      <nav aria-label="Main">
+        <a href="/projects/">Projects</a>
+        <a href="/services/">Services</a>
+        <a href="/areas/">Areas</a>
+        <a href="/contact/" class="btn small">Free quote</a>
+      </nav>
+      <!-- the visible header number: the only one a call tracking script may swap, and only for tracked visits -->
+      <a class="phone" href={`tel:${business.telephone}`} data-track="click_to_call"><span class="phone-number">{phoneText}</span></a>
+    </header>
+    <main id="main"><slot /></main>
+    <footer class="site-footer">
+      {showCredentials && (business.credentials ?? []).length > 0 && <ul class="trust trust-footer" aria-label="Credentials">{(business.credentials ?? []).map((c) => <li>{c}</li>)}</ul>}
+      <div>
+        <strong>{business.legalName}</strong><br />
+        {business.streetAddress}, {business.city} {business.region} {business.postalCode}<br />
+        <!-- the footer always shows the real number: call tracking is told not to touch it -->
+        <a href={`tel:${business.telephone}`} data-calltrk-noswap data-track="click_to_call">{phoneText}</a> · <a href={`mailto:${business.email}`}>{business.email}</a>
+      </div>
+      <p class="muted small-print"><a href="/privacy/">Privacy</a> · Sample site for a portfolio demo. The company, jobs, people, reviews, licence and insurance details and photographs are invented; the photographs are synthetic images generated locally.</p>
+    </footer>
+    <!-- on a phone the two things a homeowner with a leak wants are always one tap away -->
+    <div class="sticky-bar" role="region" aria-label="Contact">
+      <a class="btn call" href={`tel:${business.telephone}`} data-track="click_to_call">Call {phoneText}</a>
+      <a class="btn ghost" href="/contact/">Free quote</a>
+    </div>
+    <script is:inline set:html={clickSnippet} />
+    {gtmSnippet && <script is:inline set:html={gtmSnippet} />}
+    {callrailSnippet && <script is:inline set:html={callrailSnippet} />}
+  </body>
+</html>

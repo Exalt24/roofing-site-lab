@@ -1,0 +1,125 @@
+---
+import { buildGraph, checkGraph, swapTest, duplicateGate, validateProject, type Dataset, type Page, type Project } from "@lab/content";
+import Base from "../layouts/Base.astro";
+import Pic from "../components/Pic.astro";
+import Card from "../components/Card.astro";
+import { loadDataset } from "../lib/data.ts";
+import { imgUrl, posterUrl } from "../lib/img.ts";
+import { all as jsonldFor } from "../lib/jsonld.ts";
+
+export async function getStaticPaths() {
+  const ds = await loadDataset();
+  const graph = buildGraph(ds);
+  // every published project must pass the entry checks (thin story, lazy alt text, a review without consent, no homeowner photo release)
+  const entryProblems = ds.projects.filter((p) => p.status === "published").flatMap((p) => validateProject(p, ds));
+  if (entryProblems.length) throw new Error("Project entry check failed:\n" + entryProblems.join("\n"));
+  // the build refuses to ship a graph with orphans, broken links, doorway-like area pages or near-duplicate narratives
+  for (const gate of [checkGraph(graph), swapTest(ds, graph), duplicateGate(graph)]) {
+    if (!gate.ok) throw new Error("Content gate failed:\n" + gate.problems.join("\n"));
+  }
+  for (const s of graph.skipped) console.log(`[content] no page for ${s.neighbourhood}: ${s.reason}`); // the build says why a page was not generated
+  return graph.pages
+    .filter((p) => p.url !== "/contact/")
+    .map((page) => ({ params: { slug: page.url === "/" ? undefined : page.url.replace(/^\/|\/$/g, "") }, props: { page, ds, withoutPage: graph.areaNamesWithoutPage } }));
+}
+
+const { page, ds, withoutPage } = Astro.props as { page: Page; ds: Dataset; withoutPage: string[] };
+const projectsHere: Project[] = page.projectIds.map((id) => ds.projects.find((p) => p.id === id)!).filter(Boolean);
+const nName = (p: Project) => ds.neighbourhoods.find((n) => n.slug === p.neighbourhoodSlug)?.name;
+const project = page.type === "project" ? projectsHere[0] : undefined;
+const service = page.type === "service" ? ds.services.find((s) => `/services/${s.slug}/` === page.url) : undefined;
+const material = page.type === "material" ? ds.materials.find((m) => `/materials/${m.slug}/` === page.url) : undefined;
+const area = page.type === "area" ? ds.neighbourhoods.find((n) => `/areas/${n.slug}/` === page.url) : undefined;
+const hero = page.type === "home" ? (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0] : project?.photos[0];
+const description = project?.summary ?? service?.summary ?? material?.summary ?? (area ? `Completed roofing projects in ${area.name}, ${area.city}.` : "Roofing and solar on the North Shore, shown through the jobs we have actually finished.");
+const title = `${page.title}${page.type === "home" ? "" : " | " + ds.business.name.replace(" (sample)", "")}`;
+const jsonld = jsonldFor(ds, page, project, service);
+const phone = ds.business.telephone.replace(/^\+1-/, "").replace("-", " ");
+const reviewed = page.type === "home" ? ds.projects.filter((p) => p.status === "published" && p.review?.consent).slice(0, 3) : [];
+const STAGE = { before: "Before", during: "During", after: "After" } as const;
+const ORDER = { before: 0, during: 1, after: 2 } as const;
+const stagedPhotos = project ? [...project.photos].sort((a, b) => (ORDER[a.stage ?? "after"]) - (ORDER[b.stage ?? "after"])) : [];
+const crumbs = page.breadcrumbs.length ? [...page.breadcrumbs, { url: page.url, text: page.title }] : [];
+const relatedLinks = page.links.filter((l) => /^\/(services|materials|areas)\//.test(l.url));
+const relatedProjects = page.type === "project" ? page.links.filter((l) => /^\/projects\/.+/.test(l.url)).map((l) => ds.projects.find((p) => `/projects/${p.slug}/` === l.url)!).filter(Boolean) : [];
+---
+<Base title={title} description={description} canonical={page.canonical} business={ds.business} jsonld={jsonld} preloadImage={hero ? imgUrl(hero.file, 800) : undefined} ogImage={hero ? imgUrl(hero.file, 1200) : undefined} showCredentials={page.type !== "home"}>
+  {crumbs.length > 0 && <nav class="crumbs" aria-label="Breadcrumb">{crumbs.map((c, i) => <span>{i > 0 && " › "}{i < crumbs.length - 1 ? <a href={c.url}>{c.text}</a> : c.text}</span>)}</nav>}
+
+  {page.type === "home" && hero && (
+    <section class="hero">
+      <Pic file={hero.file} alt={hero.alt} width={hero.width} height={hero.height} sizes="100vw" priority />
+      <div class="hero-copy">
+        <h1>Roofing and solar on the North Shore, shown one finished job at a time</h1>
+        <p>Metal, cedar, shingle, flat roofs, skylights and solar in West and North Vancouver. Every page on this site comes from a finished job.</p>
+        <p><a class="btn" href="/contact/">Get a free quote</a> <a class="btn call" href={`tel:${ds.business.telephone}`} data-track="click_to_call">Call {phone}</a> <a class="btn ghost" style="background:#fff" href="/projects/">See completed projects</a></p>
+      </div>
+    </section>
+    <ul class="trust" aria-label="Credentials">{(ds.business.credentials ?? []).map((c) => <li>{c}</li>)}</ul>
+    <div class="section">
+      {reviewed.length > 0 && <><h2>What customers say</h2><div class="reviews">{reviewed.map((p) => <blockquote>“{p.review!.quote}”<br /><span class="muted">{p.review!.author}, <a href={`/projects/${p.slug}/`}>{p.title}</a></span></blockquote>)}</div></>}
+      <h2>Recent projects</h2>
+      <div class="grid">{projectsHere.map((p) => <Card project={p} neighbourhood={nName(p)} />)}</div>
+      <h2>What we do</h2>
+      <p>{ds.services.map((s) => <a class="pill" href={`/services/${s.slug}/`}>{s.name}</a>)}</p>
+      <h2>Where we work</h2>
+      <p>West Vancouver and North Vancouver. <a href="/areas/">See the areas with completed projects</a>.</p>
+    </div>
+  )}
+
+  {page.type === "projects-index" && (
+    <div class="section"><h1>Completed roofing projects</h1><p class="muted">{projectsHere.length} finished jobs, newest first. Each one explains what was wrong, what we did and what happened.</p>
+      <div class="grid">{projectsHere.map((p, i) => <Card project={p} neighbourhood={nName(p)} level={2} priority={i === 0} />)}</div></div>
+  )}
+
+  {page.type === "project" && project && (
+    <article class="section story">
+      <h1>{project.title}</h1>
+      <p class="muted">{project.summary}</p>
+      <dl class="facts">
+        <div><dt>Neighbourhood</dt><dd>{nName(project)}</dd></div>
+        <div><dt>Roof</dt><dd>{project.roofType}{project.colour ? `, ${project.colour.toLowerCase()}` : ""}</dd></div>
+        {project.manufacturer && <div><dt>Product</dt><dd>{project.manufacturer}</dd></div>}
+        {project.squareFeet && <div><dt>Size</dt><dd>{project.squareFeet.toLocaleString("en-CA")} sq ft</dd></div>}
+        {project.durationDays && <div><dt>Time on site</dt><dd>{project.durationDays} days</dd></div>}
+        <div><dt>Finished</dt><dd>{project.completedOn}</dd></div>
+      </dl>
+      <div class={`gallery ${project.photos.length > 1 ? "two" : ""}`}>
+        {stagedPhotos.map((ph, i) => <figure><Pic file={ph.file} alt={ph.alt} width={ph.width} height={ph.height} priority={i === 0} sizes="(min-width: 900px) 540px, 100vw" /><figcaption>{ph.stage && <span class={`stage ${ph.stage}`}>{STAGE[ph.stage]}</span>} {ph.caption}</figcaption></figure>)}
+      </div>
+      {project.videos.map((v) => <figure><video controls preload="none" poster={posterUrl(v.poster, project.photos)} width="1280" height="720"><source src={v.file.startsWith("http") ? v.file : `/videos/${v.file}`} type="video/mp4" /></video><figcaption class="muted">{v.title} ({v.durationSeconds} seconds)</figcaption></figure>)}
+      {project.existingConditions && <><h2>What the roof was like</h2><p>{project.existingConditions}</p></>}
+      <h2>What made it hard</h2><p>{project.challenges}</p>
+      <h2>What we installed, and why</h2><p>{project.solution}</p>
+      <h2>The result</h2><p>{project.outcome}</p>
+      {project.review?.consent && <blockquote>“{project.review.quote}”<br /><span class="muted">{project.review.author}</span></blockquote>}
+      {relatedLinks.length > 0 && <p>{relatedLinks.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>}
+      <div class="cta"><h2>Have a roof like this?</h2><p>Tell us what you are seeing and we will tell you honestly whether it needs a repair or a replacement.</p><a class="btn" href="/contact/">Get a free quote</a> <a class="btn ghost-light" href={`tel:${ds.business.telephone}`} data-track="click_to_call">Call {phone}</a></div>
+      {relatedProjects.length > 0 && <><h2>Related projects</h2><div class="grid">{relatedProjects.map((p) => <Card project={p} neighbourhood={nName(p)} />)}</div></>}
+    </article>
+  )}
+
+  {page.type === "services-index" && (
+    <div class="section"><h1>Roofing services</h1><div class="grid">{ds.services.map((s) => <article class="card"><div class="card-body"><h2><a href={`/services/${s.slug}/`}>{s.name}</a></h2><p>{s.summary}</p></div></article>)}</div></div>
+  )}
+
+  {(page.type === "service" || page.type === "material") && (
+    <div class="section"><h1>{page.title}</h1><p>{service?.body ?? material?.summary}</p>
+      {projectsHere.length ? <><h2>Jobs we have finished</h2><div class="grid">{projectsHere.map((p) => <Card project={p} neighbourhood={nName(p)} />)}</div></> : <p class="muted">We have no published project in this category yet.</p>}
+      <div class="cta"><h2>Talk to us about {page.title.toLowerCase()}</h2><a class="btn" href="/contact/">Get a free quote</a></div></div>
+  )}
+
+  {page.type === "areas-index" && (
+    <div class="section"><h1>Areas we serve</h1>
+      <p>A neighbourhood gets its own page only when we have finished enough work there to show you. Today that is:</p>
+      <p>{page.links.map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>
+      {withoutPage.length > 0 && <p class="muted">We also work in {withoutPage.join(", ")}. We will add pages for them when we have finished projects to show.</p>}</div>
+  )}
+
+  {page.type === "area" && area && (
+    <div class="section"><h1>{page.title}</h1><p>{area.facts}</p>
+      <h2>Projects in {area.name}</h2><div class="grid">{projectsHere.map((p) => <Card project={p} neighbourhood={nName(p)} />)}</div>
+      <h2>Services we have provided here</h2><p>{relatedLinks.filter((l) => l.url.startsWith("/services/")).map((l) => <a class="pill" href={l.url}>{l.text}</a>)}</p>
+      <div class="cta"><h2>Roof work in {area.name}</h2><p>Call <a href={`tel:${ds.business.telephone}`} style="color:#fff">{phone}</a> or ask for a free quote.</p><a class="btn" href="/contact/">Get a free quote</a></div></div>
+  )}
+</Base>

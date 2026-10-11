@@ -1,0 +1,18 @@
+---
+import type { Project } from "@lab/content";
+import Pic from "./Pic.astro";
+interface Props { project: Project; neighbourhood?: string; level?: 2 | 3; priority?: boolean }
+const { project: p, neighbourhood, level = 3, priority = false } = Astro.props;
+const Heading = `h${level}` as "h2" | "h3";
+const first = p.photos[0];
+---
+<article class="card">
+  <a href={`/projects/${p.slug}/`} class="card-link">
+    <Pic file={first.file} alt={first.alt} width={first.width} height={first.height} sizes="(min-width: 900px) 360px, 100vw" priority={priority} />
+    <div class="card-body">
+      <Heading>{p.title}</Heading>
+      <p class="muted">{neighbourhood ?? ""}{neighbourhood ? " · " : ""}{p.roofType} roof · finished {p.completedOn.slice(0, 7)}</p>
+      <p>{p.summary}</p>
+    </div>
+  </a>
+</article>

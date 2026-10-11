@@ -1,0 +1,21 @@
+{
+  "name": "roofing-site-lab",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build -w apps/site"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "@sanity/client": "^8.9.0",
+    "lighthouse": "^13.5.0",
+    "playwright": "^1.61.1"
+  }
+}
