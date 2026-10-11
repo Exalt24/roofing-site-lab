@@ -192,3 +192,17 @@ test("MUTANT: a call lead says its age is counted from the call, a form lead wit
   const req = adsIngestRequest({ operatingAccountId: "123-456-7890", conversionActionId: "9" }, [], { consent: true });
   assert.equal(req.destinations[0].operatingAccount.accountId, "1234567890");
 });
+
+test("MUTANT: when a payload carries both ids, the CAL... resource id is the key, so a later API row for the same call is an exact match; and two tracking numbers at the same second stay two calls", async () => {
+  const l = new Ledger();
+  const start = "2026-10-06T09:00:00.236-07:00";
+  const webhook = { ...call("766970532", "+16045550150"), resource_id: "CAL0123456789abcdef0123456789abcdef012", start_time: start, tracking_phone_number: "+17785550101" };
+  const a = l.insert(parseCall(webhook));
+  assert.equal(l.get(a.id)!.source_event_id, "CAL0123456789abcdef0123456789abcdef012", "resource_id wins over the numeric id");
+  const apiRow = { ...call("CAL0123456789abcdef0123456789abcdef012", "+16045550150"), start_time: "2026-10-06T16:00:00.900Z", tracking_phone_number: "+17785550101" };
+  const b = l.insert(parseCall(apiRow));
+  assert.deepEqual([b.inserted, b.id], [false, a.id]);
+  const otherTracker = l.insert(parseCall({ ...call("CALsecondnumber", "+16045550150"), start_time: start, tracking_phone_number: "+17785550999" }));
+  assert.equal(otherTracker.inserted, true, "the same caller reaching a different tracking number is a different call");
+  assert.equal(l.count("call"), 2);
+});

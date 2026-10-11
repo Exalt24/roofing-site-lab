@@ -64,7 +64,8 @@ type Json = Record<string, any>;
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 export function parseCall(p: Json): LeadEvent {
-  const id = str(p.id) ?? str(p.resource_id) ?? str(p.call_id) ?? (typeof p.id === "number" ? String(p.id) : null);
+  // resource_id is the alphanumeric CAL... id the API lists the call under (CallRail replaced the numeric webhook id with it), so it wins when both are present; a numeric id is the fallback
+  const id = str(p.resource_id) ?? str(p.id) ?? str(p.call_id) ?? (typeof p.id === "number" ? String(p.id) : null);
   if (!id) throw new Error("call payload has no id");
   const ids = clickIds(str(p.landing_page_url) ?? str(p.last_requested_url));
   return {

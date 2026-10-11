@@ -10,7 +10,7 @@ export interface LeadRow {
   landing_page_url: string | null; source: string | null; medium: string | null; campaign: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null;
   gclid: string | null; wbraid: string | null; gbraid: string | null; msclkid: string | null; ga_client_id: string | null; first_time: number | null;
   stage: Stage; estimate_value: number | null; sold_value: number | null; sold_at: string | null;
-  click_at: string | null; consent_version: string | null; marketing_opt_in: number; // the wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
+  click_at: string | null; tracking_number: string | null; consent_version: string | null; marketing_opt_in: number; // the wording of the purpose notice the person saw, and whether they ticked the separate, unticked-by-default marketing box (BC PIPA, CASL)
 }
 
 export const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
@@ -41,7 +41,7 @@ export class Ledger {
         source TEXT, medium TEXT, campaign TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT,
         gclid TEXT, wbraid TEXT, gbraid TEXT, msclkid TEXT, ga_client_id TEXT, first_time INTEGER,
         stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','estimate','sold','lost')), estimate_value REAL, sold_value REAL, sold_at TEXT,
-        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)), click_at TEXT,
+        consent_version TEXT, marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0,1)), click_at TEXT, tracking_number TEXT,
         raw_json TEXT NOT NULL, UNIQUE (kind, source_event_id)
       );
       CREATE TABLE IF NOT EXISTS outbox (
@@ -52,16 +52,18 @@ export class Ledger {
     // a database made before click_at existed gets the column added
     const cols = this.db.prepare("PRAGMA table_info(leads)").all() as { name: string }[];
     if (!cols.some((c) => c.name === "click_at")) this.db.exec("ALTER TABLE leads ADD COLUMN click_at TEXT");
+    if (!cols.some((c) => c.name === "tracking_number")) this.db.exec("ALTER TABLE leads ADD COLUMN tracking_number TEXT");
   }
 
   /** Idempotent: a re-delivered or reconciled event never creates a second row. */
   insert(e: LeadEvent, now = new Date()): { inserted: boolean; id: number } {
-    // The same call can arrive under two different ids: CallRail's documented post-call webhook sample carries a numeric id while its API lists the call as "CAL...", and nothing in its docs says
-    // they are the same value. So a call from the same caller number that started within one second of a stored call is the same call, whatever id it came with.
+    // The same call can arrive under two ids: CallRail documents that its API accepts the old numeric webhook id and lists the call as "CAL..." (and that webhooks now carry that as resource_id), but a
+    // payload that carries only the numeric id still exists. So, as a fallback after the exact id, a call from the same caller number (and the same tracking number when both are known) that started
+    // within one second of a stored call is treated as the same call.
     if (e.kind === "call" && e.phoneE164) {
       const sec = Math.floor(Date.parse(e.occurredAt) / 1000);
       if (Number.isFinite(sec)) {
-        const twin = this.db.prepare("SELECT id FROM leads WHERE kind = 'call' AND phone_e164 = ? AND ABS(CAST(strftime('%s', occurred_at) AS INTEGER) - ?) <= 1").get(e.phoneE164, sec) as { id: number } | undefined;
+        const twin = this.db.prepare("SELECT id FROM leads WHERE kind = 'call' AND phone_e164 = ? AND ABS(CAST(strftime('%s', occurred_at) AS INTEGER) - ?) <= 1 AND (tracking_number IS NULL OR ? IS NULL OR tracking_number = ?)").get(e.phoneE164, sec, e.trackingNumber ?? null, e.trackingNumber ?? null) as { id: number } | undefined;
         if (twin) return { inserted: false, id: twin.id };
       }
     }
@@ -77,6 +79,7 @@ export class Ledger {
     }
     const id = Number(r.lastInsertRowid);
     if (e.clickAt) this.db.prepare("UPDATE leads SET click_at = ? WHERE id = ?").run(e.clickAt, id);
+    if (e.trackingNumber) this.db.prepare("UPDATE leads SET tracking_number = ? WHERE id = ?").run(e.trackingNumber, id);
     return { inserted: true, id };
   }
 
