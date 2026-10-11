@@ -59,7 +59,7 @@ export function createReceiver(o: ReceiverOptions): Server {
       : String(req.socket.remoteAddress ?? "");
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { ...(o.allowOrigin ? { "Access-Control-Allow-Origin": o.allowOrigin } : {}), "Access-Control-Allow-Headers": "Content-Type" }); return res.end(); }
-      if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, leads: o.ledger.count(), pendingEmails: o.ledger.pending() });
+      if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true });
 
       if (req.method === "POST" && (url.pathname === "/callrail/post-call" || url.pathname === "/callrail/form")) {
         const raw = await readBody(req, max);

@@ -89,6 +89,20 @@ export class Ledger {
   all(): LeadRow[] { return this.db.prepare("SELECT * FROM leads ORDER BY id").all() as unknown as LeadRow[]; }
   count(kind?: string): number { return (this.db.prepare(kind ? "SELECT COUNT(*) c FROM leads WHERE kind = ?" : "SELECT COUNT(*) c FROM leads").get(...(kind ? [kind] : [])) as { c: number }).c; }
 
+  /** The person withdrew the advertising box (the privacy page promises this): no Google upload can be built from the lead any more, and the click details, campaign, landing page and
+   *  Google visitor number kept with it are deleted, including the copy in raw_json, then the file and its write-ahead log are scrubbed. Returns false for an unknown id or a call lead. */
+  withdrawMeasurement(id: number): boolean {
+    const row = this.db.prepare("SELECT raw_json FROM leads WHERE id = ? AND kind = 'form'").get(id) as { raw_json: string } | undefined;
+    if (!row) return false;
+    let raw: Record<string, unknown> = {};
+    try { raw = JSON.parse(row.raw_json) as Record<string, unknown>; } catch { raw = {}; }
+    delete raw.landing_page;
+    this.db.prepare(`UPDATE leads SET measurement_opt_in = 0, gclid = NULL, wbraid = NULL, gbraid = NULL, msclkid = NULL, ga_client_id = NULL, landing_page_url = NULL,
+      source = NULL, medium = NULL, campaign = NULL, utm_source = NULL, utm_medium = NULL, utm_campaign = NULL, click_at = NULL, raw_json = ? WHERE id = ?`).run(JSON.stringify(raw), id);
+    this.scrub();
+    return true;
+  }
+
   findByPhone(e164: string): LeadRow[] { return this.db.prepare("SELECT * FROM leads WHERE phone_e164 = ? ORDER BY occurred_at").all(e164) as unknown as LeadRow[]; }
 
   /** estimate and sold-job values come back from the estimating software; the join key is the E.164 phone number. */

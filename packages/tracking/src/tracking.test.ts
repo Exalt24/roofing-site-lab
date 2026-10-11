@@ -112,6 +112,44 @@ test("MUTANT: without the separate measurement box a form is stored with what th
   await t.close();
 });
 
+test("MUTANT: withdrawing the advertising box deletes the click details, visitor number and landing page (also from the stored raw copy) and stops any Google upload; a call or an unknown id is refused", async () => {
+  const t = await boot();
+  await fetch(t.base + "/api/lead", { method: "POST", body: formData({ gclid: "GG-WITHDRAW", click_time: new Date().toISOString(), utm_source: "google" }) });
+  const before = t.ledger.all()[0];
+  assert.equal(before.gclid, "GG-WITHDRAW"); assert.equal(before.measurement_opt_in, 1); assert.match(before.raw_json, /landing_page/);
+  assert.equal(t.ledger.withdrawMeasurement(before.id), true);
+  const after = t.ledger.get(before.id)!;
+  for (const k of ["gclid", "wbraid", "gbraid", "ga_client_id", "landing_page_url", "utm_source", "utm_campaign", "click_at"] as const) assert.equal(after[k], null, k);
+  assert.equal(after.measurement_opt_in, 0);
+  assert.equal(/landing_page|GG-WITHDRAW/.test(after.raw_json), false, "the stored raw copy is cleaned too");
+  assert.equal(after.phone_e164, before.phone_e164, "what they typed for the quote stays");
+  assert.equal(adsIngestEvent(after, { stage: "sold", value: 1 }).event, null);
+  assert.equal(t.ledger.withdrawMeasurement(99999), false);
+  const { id: callId } = t.ledger.insert(parseCall({ id: "CALW1", customer_phone_number: "+16045550123", start_time: new Date().toISOString() }));
+  assert.equal(t.ledger.withdrawMeasurement(callId), false);
+  await t.close();
+});
+
+test("the withdraw command deletes one lead's advertising details in a real ledger file and refuses an unknown id", async () => {
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "wd-"));
+  const file = join(dir, "ledger.sqlite");
+  try {
+    const l = new Ledger(file);
+    const { id } = l.insert({ ...parseForm({ id: 31, form_data: { name: "Ana", phone: "604-555-0188" }, landing_page_url: "https://x.example/?gclid=G31", submitted_at: "2026-10-05T10:00:00Z" }), gaClientId: "1.2", measurementOptIn: true });
+    l.db.close();
+    const cli = new URL("./withdraw.ts", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+    const out = execFileSync(process.execPath, ["--experimental-sqlite", cli, file, String(id)], { encoding: "utf8" });
+    assert.match(out, /withdrawn/);
+    const reopened = new Ledger(file); const after = reopened.get(id)!; reopened.db.close();
+    assert.equal(after.gclid, null); assert.equal(after.ga_client_id, null); assert.equal(after.measurement_opt_in, 0);
+    assert.equal(spawnSync(process.execPath, ["--experimental-sqlite", cli, file, "9999"]).status, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("MUTANT: a form lead that arrives through CallRail's form webhook has no measurement box behind it, so neither Google builder will use it", () => {
   const l = new Ledger();
   const { id } = l.insert({ ...parseForm({ id: 21, form_data: { name: "Ana", phone: "604-555-0188", email: "ana@example.com" }, landing_page_url: "https://x.example/?gclid=G21", submitted_at: "2026-10-05T10:00:00Z" }), gaClientId: "111.222" });

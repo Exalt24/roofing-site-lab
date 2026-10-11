@@ -1,4 +1,4 @@
-// XML sitemap with image entries. lastmod is real: the newest project date that appears on the page, never "today".
+// XML sitemap with image entries. lastmod is the build date: every page is regenerated on each build, and a job's finish date is not a modification date.
 import { buildGraph } from "@lab/content";
 import { loadDataset } from "../lib/data.ts";
 import { imgUrl } from "../lib/img.ts";

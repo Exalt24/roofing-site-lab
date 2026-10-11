@@ -20,7 +20,7 @@ test("Ads offline conversion (Data Manager API): one click id, hashed identifier
   assert.equal(email.emailAddress, sha256("anasmith@gmail.com"), "gmail dots are removed before hashing");
   const req = adsIngestRequest({ operatingAccountId: "1234567890", conversionActionId: "555" }, [event!], { consent: true });
   assert.equal(req.validateOnly, true); assert.equal(req.encoding, "HEX"); assert.equal(req.destinations[0].productDestinationId, "555");
-  assert.equal(adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [event!], { validateOnly: false, consent: false }).consent.adUserData, "CONSENT_DENIED");
+  assert.throws(() => adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [event!], { validateOnly: false, consent: false }), /no consent/);
   void l;
   // The timestamp must name the SAME instant whatever timezone data this Node build ships. BC moved to permanent UTC-7 in tzdata 2026b (Node 24); older Node builds (22.18 ships 2025b)
   // still say -08:00 for a December date, which is a different wall clock for the same instant, so the test checks the instant and a Vancouver offset, not a particular offset.
@@ -151,8 +151,9 @@ test("the runnable server refuses to start without its key, starts with one, ans
   await assert.rejects(startServer({ CALLRAIL_SIGNING_KEY: "k", OWNER_EMAIL: "o@example.com", RETENTION_MONTHS: "0" }, () => {}), /RETENTION_MONTHS/);
   const run = await startServer({ CALLRAIL_SIGNING_KEY: "k", OWNER_EMAIL: "o@example.com", PORT: "0", LEDGER_PATH: ":memory:" }, () => {});
   const port = (run.server.address() as { port: number }).port;
-  const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json() as { ok: boolean; leads: number };
-  assert.deepEqual([health.ok, health.leads], [true, 0]);
+  const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json() as Record<string, unknown>;
+  assert.deepEqual(health, { ok: true }, "the health check answers ok and tells a stranger nothing else");
+  assert.equal(run.ledger.count(), 0);
   const { sign } = await import("./index.ts");
   const body = JSON.stringify({ id: "CALSRV1", customer_phone_number: "+16045550100", start_time: new Date().toISOString(), landing_page_url: "https://x.example/?gclid=G1" });
   const r = await fetch(`http://127.0.0.1:${port}/callrail/post-call`, { method: "POST", headers: { Signature: sign(body, "k") }, body });

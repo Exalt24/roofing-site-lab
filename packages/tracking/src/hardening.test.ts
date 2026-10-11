@@ -108,9 +108,10 @@ test("MUTANT: the Ads event carries the exact values Google needs: hashed phone,
   const form = adsIngestEvent({ ...row, kind: "form", measurement_opt_in: 1 }, { stage: "sold", value: 100, at, uploadAt: at });
   assert.equal(form.event?.eventSource, "WEB");
   const granted = adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [form.event!], { consent: true });
-  assert.deepEqual(granted.consent, { adUserData: "CONSENT_GRANTED", adPersonalization: "CONSENT_GRANTED" });
-  const denied = adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [form.event!], { consent: false });
-  assert.deepEqual(denied.consent, { adUserData: "CONSENT_DENIED", adPersonalization: "CONSENT_DENIED" });
+  assert.deepEqual(granted.consent, { adUserData: "CONSENT_GRANTED" }, "the box covers ad measurement only, so personalisation is not claimed");
+  const personalised = adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [form.event!], { consent: true, adPersonalization: true });
+  assert.deepEqual(personalised.consent, { adUserData: "CONSENT_GRANTED", adPersonalization: "CONSENT_GRANTED" });
+  assert.throws(() => adsIngestRequest({ operatingAccountId: "1", conversionActionId: "2" }, [form.event!], { consent: false }), /no consent/);
 });
 
 test("MUTANT: the GA4 timestamp is in MICROseconds and exact, and an event dated in the future is sent without one", () => {

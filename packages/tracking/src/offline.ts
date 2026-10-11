@@ -53,7 +53,7 @@ export interface IngestEvent {
 }
 export interface IngestEventsRequest {
   destinations: { operatingAccount: { accountType: "GOOGLE_ADS"; accountId: string }; loginAccount: { accountType: "GOOGLE_ADS"; accountId: string }; productDestinationId: string }[];
-  encoding: "HEX"; consent: { adUserData: "CONSENT_GRANTED" | "CONSENT_DENIED"; adPersonalization: "CONSENT_GRANTED" | "CONSENT_DENIED" };
+  encoding: "HEX"; consent: { adUserData: "CONSENT_GRANTED"; adPersonalization?: "CONSENT_GRANTED" };
   events: IngestEvent[]; validateOnly: boolean;
 }
 
@@ -106,19 +106,22 @@ export function adsIngestEvent(lead: LeadRow, opts: { stage: OfflineStage; value
 }
 
 /** The IngestionService request body. validateOnly defaults to true: Google checks everything and processes nothing until it is set to false.
- *  Consent has no default: the caller states whether the person agreed to their hashed details being used for ad measurement, and the privacy page must say so. */
-export function adsIngestRequest(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; validateOnly?: boolean }): IngestEventsRequest {
-  const consent = opts.consent ? "CONSENT_GRANTED" : "CONSENT_DENIED";
+ *  Consent has no default and a request is never built without it: the caller states that the person agreed to their hashed details being used for ad measurement (adUserData), and only the
+ *  measurement the box describes is claimed. adPersonalization is a separate Google consent, sent only when the caller says the person agreed to personalised advertising too. Google answers a DENIED
+ *  value with an error, so refusing here is the safe path. */
+export function adsIngestRequest(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; adPersonalization?: boolean; validateOnly?: boolean }): IngestEventsRequest {
+  if (!opts.consent) throw new Error("no consent: an Ads upload is never built for a person who did not agree to ad measurement");
+  const consent: IngestEventsRequest["consent"] = { adUserData: "CONSENT_GRANTED", ...(opts.adPersonalization ? { adPersonalization: "CONSENT_GRANTED" as const } : {}) };
   const account = (id: string) => ({ accountType: "GOOGLE_ADS" as const, accountId: id.replace(/-/g, "") }); // Google wants the 10 digit customer id without hyphens
   return {
     destinations: [{ operatingAccount: account(dest.operatingAccountId), loginAccount: account(dest.loginAccountId ?? dest.operatingAccountId), productDestinationId: dest.conversionActionId }],
-    encoding: "HEX", consent: { adUserData: consent, adPersonalization: consent }, events, validateOnly: opts.validateOnly ?? true,
+    encoding: "HEX", consent, events, validateOnly: opts.validateOnly ?? true,
   };
 }
 
 /** Data Manager accepts at most 2,000 events per IngestEvents request, and a fast-fail API rejects the whole request for one bad event, so a long list goes up in chunks. */
 export const MAX_EVENTS_PER_REQUEST = 2000;
-export function adsIngestRequests(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; validateOnly?: boolean }): IngestEventsRequest[] {
+export function adsIngestRequests(dest: DataManagerDestination, events: IngestEvent[], opts: { consent: boolean; adPersonalization?: boolean; validateOnly?: boolean }): IngestEventsRequest[] {
   const out: IngestEventsRequest[] = [];
   for (let i = 0; i < events.length; i += MAX_EVENTS_PER_REQUEST) out.push(adsIngestRequest(dest, events.slice(i, i + MAX_EVENTS_PER_REQUEST), opts));
   return out.length ? out : [adsIngestRequest(dest, [], opts)];
