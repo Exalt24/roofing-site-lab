@@ -75,7 +75,8 @@ def main():
                 break
         else:
             print("TIMEOUT", pid)
-    json.dump(manifest, open(os.path.join(OUT, "manifest.json"), "w"), indent=1)
+    with open(os.path.join(OUT, "manifest.json"), "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=1)
 
 
 if __name__ == "__main__":
