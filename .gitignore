@@ -14,3 +14,5 @@ qa/
 dist-pages/
 dist-truth/
 dist-policy/
+# runtime state, never source (class_sweep tracked-runtime)
+__pycache__/
