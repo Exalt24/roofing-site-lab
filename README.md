@@ -1,10 +1,12 @@
 # Roofing Site Lab
 
+[![CI](https://github.com/Exalt24/roofing-site-lab/actions/workflows/test.yml/badge.svg)](https://github.com/Exalt24/roofing-site-lab/actions/workflows/test.yml)
+
 ![Review screens in the Studio, then the generated site](docs/demo.gif)
 
 *Left to right in the clip: an AI-written draft waiting for a person in Sanity Studio, then the live static site that is built from the same content. [Full quality mp4](docs/demo.mp4).*
 
-A working reference for a roofing contractor's website, built to show how the content, the speed, the AI-assisted drafting and the call tracking fit together. Live site: https://seabreeze-roofing-lab.pages.dev
+Astro and Sanity reference site for a roofing contractor, with AI drafts for human review. Sample data. Live site: https://seabreeze-roofing-lab.pages.dev
 
 **Everything here is sample data.** "Seabreeze Roofing & Solar" is an invented company, the jobs, people, reviews, licence and insurance details, phone number and addresses are made up, and every photograph is a synthetic image generated locally (SDXL through ComfyUI) with its metadata stripped. The clips are 6 second synthetic placeholders. Nothing is a real customer, a real roof or a real result. **The quote form on the live sample is not connected to anything** (the page says so and the button is disabled): the lead receiver is built and tested here but is not deployed.
 
