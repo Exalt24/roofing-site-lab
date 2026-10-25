@@ -70,6 +70,27 @@ test("an old .html address gets its own rule, since the page exists but that spe
   assert.ok(!entries.some((x) => x.from.endsWith(".html/")), "an .html address has no trailing slash twin");
 });
 
+// The class behind the two defects Cloudflare's runtime found (an .html address with no rule, a rule that missed its trailing-slash twin): a rule matches ONE spelling,
+// so every spelling the old site listed must be the exact source of some rule. Generated: every ending crossed with every page depth and every case form.
+test("every listed spelling of an old address is the exact source of a rule (generated)", () => {
+  const depths = ["/old", "/our-services/old", "/a/b/old"];
+  const endings = ["", "/", ".html", ".htm", "/index.html", "/index.htm"];
+  const cases = [(s: string) => s, (s: string) => s.toUpperCase().replace("/OLD", "/Old")];
+  const pages = ["/", "/about/"];
+  let checked = 0;
+  for (const depth of depths) for (const ending of endings) for (const shape of cases) {
+    const listed = shape(depth + ending);
+    const spelled = listed.length > 1 ? listed.replace(/\/+$/, "") : listed;
+    const { entries, unmatched } = buildMap(parseOldUrls(listed).urls, pages, { [depth]: "/about/" });
+    const sources = new Set(entries.map((x) => x.from));
+    assert.ok(sources.has(spelled), `no rule for the spelling ${listed} (rules: ${[...sources].join(", ")}) unmatched: ${JSON.stringify(unmatched)}`);
+    if (!/\.html?$/i.test(spelled)) assert.ok(sources.has(spelled + "/"), `no trailing slash twin for ${listed}`);
+    for (const x of entries) assert.equal(x.to, "/about/", "every rule lands on the served form of the page");
+    checked++;
+  }
+  assert.equal(checked, depths.length * endings.length * cases.length);
+});
+
 test("the source keeps the spelling the old site used, case included", () => {
   const { entries } = buildMap(parseOldUrls("/Our-Services/Invisalign").urls, NEW);
   assert.equal(entries[0].from, "/Our-Services/Invisalign");
