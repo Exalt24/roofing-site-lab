@@ -12,7 +12,7 @@ export interface Entry { from: string; to: string; status: number; how: How }
 export interface OldUrl { raw: string; path: string; spelled: string; hadQuery: boolean }
 export interface Unmatched { from: string; reason: "no-page" | "ambiguous" | "case-differs"; candidates: string[] }
 export interface MapResult { entries: Entry[]; unmatched: Unmatched[] }
-export type ProblemKind = "SOURCE_IS_LIVE_PAGE" | "TARGET_MISSING" | "CHAIN" | "LOOP" | "DUPLICATE_SOURCE" | "SELF_REDIRECT" | "QUERY_IN_SOURCE" | "FRAGMENT_IN_SOURCE" | "NOT_301" | "TOO_MANY_STATIC" | "TOO_MANY_DYNAMIC" | "LINE_TOO_LONG" | "BAD_LINE" | "EXTERNAL_TARGET";
+export type ProblemKind = "SITEMAP_INDEX" | "SOURCE_IS_LIVE_PAGE" | "TARGET_MISSING" | "CHAIN" | "LOOP" | "DUPLICATE_SOURCE" | "SELF_REDIRECT" | "QUERY_IN_SOURCE" | "FRAGMENT_IN_SOURCE" | "NOT_301" | "TOO_MANY_STATIC" | "TOO_MANY_DYNAMIC" | "LINE_TOO_LONG" | "BAD_LINE" | "EXTERNAL_TARGET";
 export interface Problem { kind: ProblemKind; from: string; message: string }
 
 const isDynamic = (p: string) => p.includes("*") || /:[A-Za-z]\w*/.test(p);
@@ -85,6 +85,9 @@ export function buildMap(oldUrls: OldUrl[], newPages: string[], overrides: Recor
   const rules = (o: OldUrl, to: string, how: How): Entry[] => {
     const out: Entry[] = [{ from: o.spelled, to, status: 301, how }];
     if (!hasExtension(o.spelled) && o.spelled !== "/") out.push({ from: o.spelled + "/", to, status: 301, how });
+    // /team/index.html is also served as /team/ and /team on the old site, so the folder spellings get the same rule (the root is a live page and is left alone).
+    const folder = /^(.+)\/index\.html?$/i.exec(o.spelled);
+    if (folder) out.push({ from: folder[1], to, status: 301, how }, { from: folder[1] + "/", to, status: 301, how });
     return out;
   };
   const live = new Map<string, string>();
@@ -112,7 +115,10 @@ export function buildMap(oldUrls: OldUrl[], newPages: string[], overrides: Recor
     if (cands.length === 1) { entries.push(...rules(o, served(cands[0]), "slug")); continue; }
     unmatched.push({ from: o.path, reason: cands.length > 1 ? "ambiguous" : "no-page", candidates: cands });
   }
-  return { entries, unmatched };
+  // An address can be reached by two old spellings that share a rule (a /team page and a /team/index.html page): keep one copy of an identical rule.
+  const seenRule = new Set<string>();
+  const unique = entries.filter((x) => { const k = `${x.from.toLowerCase()} ${x.to}`; if (seenRule.has(k)) return false; seenRule.add(k); return true; });
+  return { entries: unique, unmatched };
 }
 
 /** The file Cloudflare reads: a comment header, then static redirects, then dynamic ones, each with its status written out. */
@@ -154,6 +160,8 @@ export function checkRedirects(entries: Entry[], livePages: string[], opts: { al
     if (dynamic) dyn++; else stat++;
     const len = `${e.from} ${e.to} ${e.status}`.length;
     if (len > MAX_LINE) out.push({ kind: "LINE_TOO_LONG", from: e.from, message: `${len} characters, the limit is ${MAX_LINE}` });
+    // Cloudflare splits a line on spaces, so a source or target with one (an encoded %20 decoded to a space) is skipped with no warning.
+    if (/\s/.test(e.from) || /\s/.test(e.to)) out.push({ kind: "BAD_LINE", from: e.from, message: "contains a space, so Cloudflare would skip the line; give it an override with a safe address" });
     if (e.status !== 301) out.push({ kind: "NOT_301", from: e.from, message: `status ${e.status}, and a move that keeps rankings is a 301` });
     if (e.from.includes("?")) out.push({ kind: "QUERY_IN_SOURCE", from: e.from, message: "a source cannot match a query string" });
     if (e.from.includes("#")) out.push({ kind: "FRAGMENT_IN_SOURCE", from: e.from, message: "a fragment in a source is never evaluated" });
@@ -204,6 +212,10 @@ export function checkRedirects(entries: Entry[], livePages: string[], opts: { al
 export function planMigration(oldText: string, newPages: string[], overrides: Record<string, string> = {}) {
   const { urls, ignored } = parseOldUrls(oldText);
   const map = buildMap(urls, newPages, overrides);
-  const problems = checkRedirects(map.entries, newPages, { allowExternal: true });
-  return { urls, entries: map.entries, unmatched: map.unmatched, ignored, queryOnly: urls.filter((u) => u.hadQuery).map((u) => u.path), problems, file: renderRedirects(map.entries) };
+  const file = renderRedirects(map.entries);
+  // The tool reads its own output back the way Cloudflare will, so a line it wrote that Cloudflare would skip is a problem and not a silent 404.
+  const problems = [...checkRedirects(map.entries, newPages, { allowExternal: true }), ...parseRedirects(file).problems];
+  // A sitemap index lists other sitemaps, not pages: the child sitemaps are what to pass, so an empty map from it must not look like success.
+  if (/<sitemapindex/i.test(oldText)) problems.push({ kind: "SITEMAP_INDEX", from: "(input)", message: "this is a sitemap index that lists other sitemaps; pass each child sitemap instead" });
+  return { urls, entries: map.entries, unmatched: map.unmatched, ignored, queryOnly: urls.filter((u) => u.hadQuery).map((u) => u.path), problems, file };
 }

@@ -53,6 +53,14 @@ lines.push(`| How matched | Count |`, `|---|---|`, `| Same address, spelled diff
 lines.push(`## Old URLs that need a decision (${plan.unmatched.length})`, "");
 if (plan.unmatched.length === 0) lines.push("None.");
 for (const u of plan.unmatched) lines.push(`- ${u.from} (${u.reason === "ambiguous" ? "more than one page could match: " + u.candidates.join(", ") : u.reason === "case-differs" ? "only the letter case differs from " + u.candidates[0] + ", so check whether the host treats them as one address" : "no page of the new site matches"})`);
+// A match by the last part of the address is a guess a person should read: a blog post can land on a service page. List each pair.
+const slugPairs = plan.entries.filter((e) => e.how === "slug" && !e.from.endsWith("/"));
+lines.push("", `## Matches to check by eye (${slugPairs.length})`, "", slugPairs.length ? "These were matched only because the last part of the address is the same. Confirm each one is the right page, or put the right target in the overrides file." : "None.");
+for (const e of slugPairs) lines.push(`- ${e.from} to ${e.to}`);
+// A target that leaves the site is not checked against the new pages, so a typo in it would ship: show every one.
+const outside = plan.entries.filter((e) => /^[a-z][a-z0-9+.-]*:/i.test(e.to) && !e.from.endsWith("/"));
+lines.push("", `## Targets that leave the site (${outside.length})`, "", outside.length ? "These are not checked against the new pages. Read each address." : "None.");
+for (const e of outside) lines.push(`- ${e.from} to ${e.to}`);
 lines.push("", `## Problems (${plan.problems.length})`, "");
 if (plan.problems.length === 0) lines.push("None.");
 for (const p of plan.problems) lines.push(`- ${p.kind}: ${p.from}, ${p.message}`);

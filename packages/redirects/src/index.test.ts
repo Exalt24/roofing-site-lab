@@ -91,6 +91,40 @@ test("every listed spelling of an old address is the exact source of a rule (gen
   assert.equal(checked, depths.length * endings.length * cases.length);
 });
 
+// Round 1 adversary findings, each pinned (findings 1, 5, 8 and the shared-rule dedupe).
+test("a line Cloudflare would skip (a space from an encoded address) is a problem, never a silent 404", () => {
+  const plan = planMigration("/a%20b/gutters", [...NEW, "/services/gutters/"], {});
+  assert.ok(plan.problems.some((p) => p.kind === "BAD_LINE"), JSON.stringify(plan.problems));
+  const viaOverride = planMigration("/our%20team", NEW, { "/our team": "/team/dr-lee/" });
+  assert.ok(viaOverride.problems.some((p) => p.kind === "BAD_LINE"));
+  assert.deepEqual(planMigration("/our-team", NEW, { "/our-team": "/team/dr-lee/" }).problems, []);
+});
+
+test("the checker itself refuses a space in a source or a target", () => {
+  assert.deepEqual(kinds([e("/a b", "/about/")]), ["BAD_LINE"]);
+  assert.deepEqual(kinds([e("/old", "/about us/")]).includes("BAD_LINE"), true);
+});
+
+test("the tool reads its own output back the way Cloudflare will", () => {
+  const plan = planMigration("/old-a", NEW, { "/old-a": "/team/dr-lee/ extra token" });
+  assert.ok(plan.problems.some((p) => p.kind === "BAD_LINE"));
+});
+
+test("an old /team/index.html page also gets the /team and /team/ spellings, and no duplicate rule appears", () => {
+  const { entries } = buildMap(parseOldUrls("/team/index.html").urls, NEW, { "/team": "/team/dr-lee/" });
+  assert.deepEqual(entries.map((x) => x.from).sort(), ["/team", "/team/", "/team/index.html"]);
+  const both = buildMap(parseOldUrls("/team\n/team/index.html").urls, NEW, { "/team": "/team/dr-lee/" });
+  assert.equal(both.entries.length, 3, "an identical rule listed by two old spellings is kept once");
+  assert.equal(new Set(both.entries.map((x) => x.from.toLowerCase())).size, 3);
+});
+
+test("a sitemap index is refused as input, since it lists other sitemaps and not pages", () => {
+  const idx = "<sitemapindex><sitemap><loc>https://old.example/pages-sitemap.xml</loc></sitemap></sitemapindex>";
+  const plan = planMigration(idx, NEW, {});
+  assert.deepEqual(plan.problems.map((p) => p.kind), ["SITEMAP_INDEX"]);
+  assert.deepEqual(planMigration("<urlset><url><loc>https://old.example/about-us</loc></url></urlset>", NEW, { "/about-us": "/about/" }).problems, []);
+});
+
 test("the source keeps the spelling the old site used, case included", () => {
   const { entries } = buildMap(parseOldUrls("/Our-Services/Invisalign").urls, NEW);
   assert.equal(entries[0].from, "/Our-Services/Invisalign");

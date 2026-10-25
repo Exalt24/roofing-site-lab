@@ -36,6 +36,19 @@ node --experimental-strip-types tools/redirect_map.mjs \
 
 These come from Cloudflare's Pages redirects page, read on 2026-10-25 (`https://developers.cloudflare.com/pages/configuration/redirects/`): "A _redirects file is limited to 2,000 static redirects and 100 dynamic redirects, for a combined total of 2,100 redirects. Each redirect declaration has a 1,000-character limit." and "Redirects are always followed, regardless of whether or not an asset matches the incoming request." and "302 is used as the default status code."
 
+## Known limits
+
+An independent pass tried to break the tool. What it found and the tool now handles: an encoded space in an old address (Cloudflare skips that line without a warning, so the tool now refuses it and reads its own output back), a sitemap index given as input (refused, pass the child sitemaps), a folder page listed as `/team/index.html` (the `/team` and `/team/` spellings get the rule too), the pairs matched only by the last part of the address (listed in the report to read by eye), and targets that leave the site (listed, not checked). What is left, on purpose:
+
+- A wildcard rule in a hand-written file is not tested against the live pages, so `/* /about/ 301` passes `--check`. Read hand-written wildcards yourself.
+- An override target without a trailing slash costs a second hop (a 301 then a 308); write targets with the slash.
+- Query strings are dropped before matching, so `/shop?id=2` and `/shop?id=3` count as one address, and fragment-only addresses (`#!about`) collapse into their page. Where the old site told pages apart by query string, write each in the overrides file.
+- A sitemap URL wrapped in CDATA is dropped, and `&apos;` stays literal.
+- A line with no scheme, such as `www.old.example/services`, is read as a path, and an external link left in the list can become a rule; keep the list to the old site's own pages.
+- A byte order mark at the start of the overrides file stops the tool with a raw error.
+- Two rules are written for each old address, so a list over about 1,000 addresses reaches the 2,000 rule limit.
+- Production Cloudflare was not tested, only its local Pages runtime, which served `/ABOUT/` with a 200, so whether asset paths are case sensitive there is unknown.
+
 ## Before the cutover
 
 - [ ] Every old address is redirected or deliberately left to 404 (`report.md` shows none waiting).
