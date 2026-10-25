@@ -1,0 +1,18 @@
+# A made-up crawl of a made-up old site-builder version of the Seabreeze sample company. Not a real site.
+https://www.seabreeze-roofing-lab.example/
+https://www.seabreeze-roofing-lab.example/about-us
+https://www.seabreeze-roofing-lab.example/contact-us.html
+https://www.seabreeze-roofing-lab.example/our-services/cedar-roofing
+https://www.seabreeze-roofing-lab.example/our-services/metal-roofing/
+https://www.seabreeze-roofing-lab.example/our-services/flat-roofing
+https://www.seabreeze-roofing-lab.example/our-services/skylights?ref=nav
+https://www.seabreeze-roofing-lab.example/gallery/dundarave-asphalt-reroof
+https://www.seabreeze-roofing-lab.example/gallery/caulfeild-torch-on-deck
+https://www.seabreeze-roofing-lab.example/service-areas/ambleside
+https://www.seabreeze-roofing-lab.example/service-areas/british-properties
+https://www.seabreeze-roofing-lab.example/privacy-policy
+https://www.seabreeze-roofing-lab.example/specials/spring-2025
+https://www.seabreeze-roofing-lab.example/blog/how-to-pick-shingles
+https://www.seabreeze-roofing-lab.example/services/Cedar-Roofing
+https://www.seabreeze-roofing-lab.example/our-services/metal-roofing/
+https://www.seabreeze-roofing-lab.example/index.html
