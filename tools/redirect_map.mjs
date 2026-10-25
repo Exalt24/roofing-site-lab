@@ -44,7 +44,10 @@ if (checkFile) {
 const oldArg = flag("--old");
 if (!oldArg) die("--old is required (a list of old URLs or the old sitemap)");
 const overrides = flag("--overrides") ? JSON.parse(readFileSync(flag("--overrides"), "utf8")) : {};
-const plan = planMigration(readFileSync(oldArg, "utf8"), pages, overrides);
+// A build that writes name.html files (not folders) is served without the trailing slash, so its targets must be written without it too.
+const plan = planMigration(readFileSync(oldArg, "utf8"), pages, overrides, { trailingSlash: flag("--trailing-slash") !== "false" });
+// A sitemap lists only the pages a site wants indexed: a form success page or a noindex page is usually missing, so a rule could hide a live page. Say so.
+if (statSync(pagesArg).isFile()) console.error("NOTE: --pages is a sitemap, which leaves out pages that are live but not listed (a thank-you page, a noindex page). Pass the built site folder to have every live page checked.");
 
 const lines = [];
 lines.push(`# Redirect report`, "", `Old URLs read: ${plan.urls.length}. Pages on the new site: ${pages.length}. Redirects written: ${plan.entries.length}.`, "");

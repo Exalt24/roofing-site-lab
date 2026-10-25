@@ -87,7 +87,8 @@ export function buildMap(oldUrls: OldUrl[], newPages: string[], overrides: Recor
     if (!hasExtension(o.spelled) && o.spelled !== "/") out.push({ from: o.spelled + "/", to, status: 301, how });
     // /team/index.html is also served as /team/ and /team on the old site, so the folder spellings get the same rule (the root is a live page and is left alone).
     const folder = /^(.+)\/index\.html?$/i.exec(o.spelled);
-    if (folder) out.push({ from: folder[1], to, status: 301, how }, { from: folder[1] + "/", to, status: 301, how });
+    // A folder spelling that IS the page the rule points at would redirect to itself (a loop), so it is left to the page.
+    if (folder && plain(folder[1]) !== plain(to)) out.push({ from: folder[1], to, status: 301, how }, { from: folder[1] + "/", to, status: 301, how });
     return out;
   };
   const live = new Map<string, string>();
@@ -95,13 +96,15 @@ export function buildMap(oldUrls: OldUrl[], newPages: string[], overrides: Recor
   const bySegment = new Map<string, string[]>();
   for (const n of live.values()) { const seg = lastSegment(n); if (seg) bySegment.set(seg, [...(bySegment.get(seg) ?? []), n]); }
   const ov = new Map<string, string>();
-  for (const [k, v] of Object.entries(overrides)) { const nk = normalizePath(k); if (nk) ov.set(nk.toLowerCase(), v); }
+  const ovSpelled = new Map<string, string>();
+  const usedOv = new Set<string>();
+  for (const [k, v] of Object.entries(overrides)) { const nk = normalizePath(k); const sp = spelledPath(k); if (nk && sp) { ov.set(nk.toLowerCase(), v); ovSpelled.set(nk.toLowerCase(), sp); } }
   const entries: Entry[] = [];
   const unmatched: Unmatched[] = [];
   for (const o of oldUrls) {
     const key = o.path.toLowerCase();
     const ovTo = ov.get(key);
-    if (ovTo !== undefined) { entries.push(...rules(o, ovTo, "override")); continue; }
+    if (ovTo !== undefined) { usedOv.add(key); entries.push(...rules(o, ovTo, "override")); continue; }
     const exact = live.get(key);
     if (exact !== undefined) {
       // The same address exists on the new site and needs no redirect. When only the case differs, whether the host treats the two as one address is not something this tool can know, so a person decides.
@@ -114,6 +117,12 @@ export function buildMap(oldUrls: OldUrl[], newPages: string[], overrides: Recor
     const cands = bySegment.get(lastSegment(o.path)) ?? [];
     if (cands.length === 1) { entries.push(...rules(o, served(cands[0]), "slug")); continue; }
     unmatched.push({ from: o.path, reason: cands.length > 1 ? "ambiguous" : "no-page", candidates: cands });
+  }
+  // An override for an address the crawl left out (sitemaps omit pages) is the owner's explicit instruction: write its rule, never drop it silently.
+  for (const [k, to] of ov) {
+    if (usedOv.has(k)) continue;
+    const spelled = ovSpelled.get(k)!;
+    entries.push(...rules({ raw: spelled, path: normalizePath(spelled) ?? spelled, spelled, hadQuery: false }, to, "override"));
   }
   // An address can be reached by two old spellings that share a rule (a /team page and a /team/index.html page): keep one copy of an identical rule.
   const seenRule = new Set<string>();
@@ -170,6 +179,8 @@ export function checkRedirects(entries: Entry[], livePages: string[], opts: { al
     if (prev) out.push({ kind: "DUPLICATE_SOURCE", from: e.from, message: prev.to === e.to ? "listed twice" : `two targets (${prev.to} and ${e.to}), only the first applies` });
     else first.set(key, e);
     if (!dynamic && live.has(plain(e.from))) out.push({ kind: "SOURCE_IS_LIVE_PAGE", from: e.from, message: "a live page of the new site, which a redirect would hide" });
+    // Cloudflare accepts a target that starts with a slash or with https; anything else (a relative path, http) is rejected and the old page 404s.
+    if (!e.to.startsWith("/") && !/^https:\/\//i.test(e.to)) out.push({ kind: "BAD_LINE", from: e.from, message: `the target ${e.to} must start with / or https://, or Cloudflare skips the line` });
     if (isExternal(e.to)) {
       if (!opts.allowExternal) out.push({ kind: "EXTERNAL_TARGET", from: e.from, message: `points off the site: ${e.to}` });
       continue;
@@ -209,9 +220,9 @@ export function checkRedirects(entries: Entry[], livePages: string[], opts: { al
 }
 
 /** The whole step the tool runs: parse, match, check, render. Unmatched URLs and problems are both reported, never hidden. */
-export function planMigration(oldText: string, newPages: string[], overrides: Record<string, string> = {}) {
+export function planMigration(oldText: string, newPages: string[], overrides: Record<string, string> = {}, opts: { trailingSlash?: boolean } = {}) {
   const { urls, ignored } = parseOldUrls(oldText);
-  const map = buildMap(urls, newPages, overrides);
+  const map = buildMap(urls, newPages, overrides, opts);
   const file = renderRedirects(map.entries);
   // The tool reads its own output back the way Cloudflare will, so a line it wrote that Cloudflare would skip is a problem and not a silent 404.
   const problems = [...checkRedirects(map.entries, newPages, { allowExternal: true }), ...parseRedirects(file).problems];

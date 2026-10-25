@@ -47,6 +47,9 @@ An independent pass tried to break the tool. What it found and the tool now hand
 - A line with no scheme, such as `www.old.example/services`, is read as a path, and an external link left in the list can become a rule; keep the list to the old site's own pages.
 - A byte order mark at the start of the overrides file stops the tool with a raw error.
 - Two rules are written for each old address, so a list over about 1,000 addresses reaches the 2,000 rule limit.
+- A rule matches only the spelling the old crawl listed, case included, so a lowercase inbound link to an address the old site listed in mixed case 404s if the old host ignored case. List each spelling you want covered.
+- An address with a literal percent sign (`/100%25-guarantee`) is decoded to `/100%-guarantee`, which a browser never requests; write that rule by hand. An override for an address with a space cannot clear the space warning, because the rule needs the address as written; give such an address an encoded-free override by hand.
+- A sitemap given as the new site's pages leaves out live pages that are not listed (a thank-you page), so a rule could hide one; pass the built site folder instead (the tool prints a note when you pass a sitemap).
 - Production Cloudflare was not tested, only its local Pages runtime, which served `/ABOUT/` with a 200, so whether asset paths are case sensitive there is unknown.
 
 ## Before the cutover

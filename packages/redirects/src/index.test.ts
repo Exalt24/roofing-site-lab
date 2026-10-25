@@ -125,6 +125,32 @@ test("a sitemap index is refused as input, since it lists other sitemaps and not
   assert.deepEqual(planMigration("<urlset><url><loc>https://old.example/about-us</loc></url></urlset>", NEW, { "/about-us": "/about/" }).problems, []);
 });
 
+// Round 2 (blind final pass) findings, each pinned.
+test("an override for an address the crawl left out is still written, never dropped", () => {
+  const plan = planMigration("/privacy-policy", NEW, { "/privacy-policy": "/about/", "/about-us": "/about/", "/old-promo": "/contact/" });
+  const sources = plan.entries.map((x) => x.from);
+  for (const s of ["/privacy-policy", "/about-us", "/about-us/", "/old-promo", "/old-promo/"]) assert.ok(sources.includes(s), `missing a rule for ${s}: ${sources.join(", ")}`);
+  assert.deepEqual(plan.problems, []);
+});
+
+test("a target Cloudflare rejects (no leading slash, or http) is a problem, never clean", () => {
+  assert.ok(kinds([e("/old", "about/")]).includes("BAD_LINE"));
+  assert.ok(checkRedirects([e("/old", "http://www.new.example/about/")], NEW, { allowExternal: true }).some((p) => p.kind === "BAD_LINE"));
+  assert.deepEqual(checkRedirects([e("/old", "https://www.new.example/about/")], NEW, { allowExternal: true }), []);
+  assert.deepEqual(kinds([e("/old", "/about/")]), []);
+});
+
+test("an old /x/index.html whose new page is /x/ does not write a rule that redirects the page to itself", () => {
+  const plan = planMigration("/team/index.html", [...NEW, "/team/"], { "/team/index.html": "/team/" });
+  assert.deepEqual(plan.entries.map((x) => x.from), ["/team/index.html"]);
+  assert.deepEqual(plan.problems, []);
+});
+
+test("a file-style build can ask for targets without the trailing slash", () => {
+  const plan = planMigration("/our-services/invisalign", NEW, {}, { trailingSlash: false });
+  assert.ok(plan.entries.every((x) => x.to === "/services/invisalign"));
+});
+
 test("the source keeps the spelling the old site used, case included", () => {
   const { entries } = buildMap(parseOldUrls("/Our-Services/Invisalign").urls, NEW);
   assert.equal(entries[0].from, "/Our-Services/Invisalign");
