@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@lab/content": "*",
-    "@sanity/client": "^8.9.0",
-    "astro": "^7.4.0"
+    "@sanity/client": "^8.11.0",
+    "astro": "^7.4.2"
   }
 }
