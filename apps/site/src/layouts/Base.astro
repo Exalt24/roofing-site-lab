@@ -1,6 +1,7 @@
 ---
 import "../styles/site.css";
 import type { Business } from "@lab/content";
+import { consentDefaultSnippet } from "../lib/consent.ts";
 interface Props { title: string; description: string; canonical: string; business: Business; jsonld?: unknown[]; preloadImage?: string; preloadSrcset?: string; preloadSizes?: string; ogImage?: string; noindex?: boolean; showCredentials?: boolean }
 const { title, description, canonical, business, jsonld = [], preloadImage, preloadSrcset, preloadSizes, ogImage, noindex = false, showCredentials = true } = Astro.props;
 // ids and script addresses are pasted into inline script text, so only the documented shapes are accepted; anything else is ignored rather than injected
@@ -76,6 +77,7 @@ const bing = import.meta.env.PUBLIC_BING_TOKEN;
     </div>
     <script is:inline set:html={landingSnippet} />
     <script is:inline set:html={clickSnippet} />
+    {gtmSnippet && <script is:inline set:html={consentDefaultSnippet()} />}
     {gtmSnippet && <script is:inline set:html={gtmSnippet} />}
     {callrailSnippet && <script is:inline set:html={callrailSnippet} />}
   </body>

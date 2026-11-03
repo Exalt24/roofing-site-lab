@@ -12,6 +12,7 @@ qa/
 .sanity/
 *.log
 dist-pages/
+dist-consent/
 dist-truth/
 dist-policy/
 # runtime state, never source (class_sweep tracked-runtime)

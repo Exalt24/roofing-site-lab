@@ -2,6 +2,7 @@
 import Base from "../layouts/Base.astro";
 import { loadDataset } from "../lib/data.ts";
 import { ogUrl } from "../lib/img.ts";
+import { consentUpdateSnippet } from "../lib/consent.ts";
 const ds = await loadDataset();
 const ogFile = (ds.projects.find((p) => p.featured) ?? ds.projects[0])?.photos[0]?.file;
 const endpoint = import.meta.env.PUBLIC_LEAD_ENDPOINT ?? "";
@@ -76,4 +77,5 @@ const turnstile = import.meta.env.PUBLIC_TURNSTILE_SITEKEY;
       });
     })();
   </script>
+  {import.meta.env.PUBLIC_GTM_ID && <script is:inline set:html={consentUpdateSnippet("measurement_opt_in")} />}
 </Base>
