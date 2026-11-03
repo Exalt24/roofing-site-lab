@@ -1,3 +1,4 @@
+// LIFESPAN: permanent
 // Consent Mode v2: the default is denied for all four signals and runs before Tag Manager, the update follows the measurement box, and the order is checked on the BUILT pages, with a swapped order as the control.
 import { test, before } from "node:test";
 import assert from "node:assert/strict";

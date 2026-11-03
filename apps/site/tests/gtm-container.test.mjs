@@ -1,3 +1,4 @@
+// LIFESPAN: permanent
 // The exported Tag Manager container is versioned in the repo (docs/gtm-container.json), so a change to it is reviewed like code. This checks the export is internally consistent:
 // every tag fires on a trigger that exists, every variable a tag reads exists, names are unique, and every tag waits for analytics consent.
 import { test } from "node:test";
