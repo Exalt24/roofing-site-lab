@@ -2,9 +2,12 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { clickIds, parseCall, parseForm, toE164, verifySignature, type LeadEvent } from "./callrail.ts";
 import type { Ledger } from "./ledger.ts";
+import { expandMacros, tokenOk, type PostbackStore } from "./postback.ts";
 
 export interface ReceiverOptions {
   ledger: Ledger;
+  /** Tracker side: /click issues a click id and redirects to the offer link with its macros filled in, /postback takes the network's callback. Off unless set. */
+  postback?: { store: PostbackStore; token: string; offers: Record<string, string> };
   signingKey: string;
   ownerEmail: string;
   turnstileVerify?: (token: string, ip: string) => Promise<boolean>; // when set, a valid token is required
@@ -134,6 +137,22 @@ export function createReceiver(o: ReceiverOptions): Server {
           if (!r.inserted && !measure) o.ledger.withdrawMeasurement(r.id);
         });
         return json(res, 200, { ok: true }, origin);
+      }
+      if (o.postback && req.method === "GET" && url.pathname === "/click") {
+        if (limited(ip)) return json(res, 429, { error: "too many requests" });
+        const template = o.postback.offers[url.searchParams.get("offer") ?? ""];
+        if (!template) return json(res, 404, { error: "unknown offer" });
+        const sub = (k: string) => url.searchParams.get(k) ?? undefined;
+        const clickid = o.postback.store.newClick({ offer: url.searchParams.get("offer") ?? "", sub1: sub("sub1"), sub2: sub("sub2"), sub3: sub("sub3") }, now());
+        res.writeHead(302, { Location: expandMacros(template, { clickid, sub1: sub("sub1"), sub2: sub("sub2"), sub3: sub("sub3") }) });
+        return res.end();
+      }
+      if (o.postback && (req.method === "GET" || req.method === "POST") && url.pathname === "/postback") {
+        if (!tokenOk(url.searchParams.get("token"), o.postback.token)) return json(res, 401, { error: "bad token" });
+        const q = (k: string) => url.searchParams.get(k) ?? undefined;
+        const r = o.postback.store.record({ clickid: q("clickid"), status: q("status"), payout: q("payout"), currency: q("currency"), txid: q("txid") }, now());
+        if (!r.ok) return json(res, r.error === "unknown_click" ? 404 : 400, { error: r.error });
+        return json(res, 200, { ok: true, inserted: r.inserted });
       }
       return json(res, 404, { error: "not found" });
     } catch (e) {
