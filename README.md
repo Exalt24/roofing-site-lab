@@ -26,9 +26,9 @@ A roofer's crew finishes a job, picks the photos and fills a short intake (what 
 
 ## Register (what was run, and against what)
 
-- **Tests:** 250 across five packages, run by CI, with mutation checks on the build gates, the validators, the receiver and the redirect tool. Counts per group are in [docs/REGISTER.md](docs/REGISTER.md).
+- **Tests:** 262 across five packages, run by CI, with mutation checks on the build gates, the validators, the receiver and the redirect tool. Counts per group are in [docs/REGISTER.md](docs/REGISTER.md).
 - **Drafter evaluation:** 13 sample jobs on a local model: one refused at intake (private details typed in the notes), 12 sent to the model, 11 ready for review, 10 of them on the first attempt, one left with a person. The model is not deterministic, so read the first-attempt count as a range.
-- **Run against stand-ins built from the vendors' documentation:** the CallRail receiver and its nightly reconcile (recorded-shape payloads), number swapping (a simulator written for this repo), and the Google Ads payloads (built to the documented shape with `validateOnly` on by default). GA4 payloads are accepted by Google's own validation server.
+- **Run against stand-ins built from the vendors' documentation:** the CallRail receiver and its nightly reconcile (recorded-shape payloads), number swapping (a simulator written for this repo), and the Google Ads payloads (built to the documented shape with `validateOnly` on by default). GA4 payloads are accepted by Google's own validation server. The click redirect and postback endpoint (macros for click ID, sub IDs, payout, status and transaction ID, offer rotation, a 30 day attribution window, a reject is final) are tested through a local HTTP round trip and seeded random worlds, and have not been run against a live affiliate network.
 - **Connected on the live sample, on a test Google account:** GA4, Tag Manager, Search Console and Bing Webmaster Tools.- **Redirect map tool:** 42 tests, a manual breakage pass (not saved, so not repeatable), and the output served by Cloudflare's local Pages runtime; run against a sample old site.
 - **The writer guard:** the draft writer refuses any id outside `drafts.` in code; the Sanity token itself is not scoped.
 
@@ -96,7 +96,7 @@ Set `PUBLIC_LEAD_ENDPOINT` when building to connect the quote form to a receiver
 ```
 packages/content    the content model, page graph and build gates
 packages/drafter    intake -> facts ledger -> structured draft -> validators -> Sanity drafts
-packages/tracking   call webhook receiver and server, ledger, outbox, reconcile, GA4 and Data Manager API builders
+packages/tracking   call webhook receiver and server, ledger, outbox, reconcile, GA4 and Data Manager API builders, click redirect and postback endpoint
 packages/redirects  old URLs to a Cloudflare Pages _redirects file, and a checker for chains, loops, live pages and the file limits
 apps/site           Astro site and the CallRail swap simulator
 studio              Sanity Studio schema
