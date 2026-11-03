@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { Ledger, PostbackStore, createReceiver, expandMacros, macrosIn, tokenOk, MACROS, STATUSES, type PostbackInput } from "./index.ts";
+import { Ledger, PostbackStore, createReceiver, pickVariant, expandMacros, macrosIn, tokenOk, MACROS, STATUSES, type PostbackInput } from "./index.ts";
 
 const TOKEN = "postback-token-not-a-secret";
 const OFFERS = { casino1: "https://network.example/o/42?cid={clickid}&s1={sub1}&s2={sub2}" };
@@ -65,9 +65,14 @@ function runWorld(make: (l: Ledger) => PostbackStore, seed: number): string[] {
     const valid = /^[0-9a-f-]{36}$/.test(p.clickid ?? "") && clicks.includes(p.clickid as string)
       && (STATUSES as readonly string[]).includes(String(p.status).trim().toLowerCase())
       && /^\d{1,9}(\.\d{1,4})?$/.test(String(p.payout)) && /^[A-Za-z]{3}$|^$/.test(String(p.currency));
-    if (r.ok !== valid) problems.push(`step ${step}: ok=${r.ok} but valid=${valid} for ${JSON.stringify(p)}`);
-    if (r.ok && valid) {
-      const key = `${p.clickid}|${String(p.status).trim().toLowerCase()}|${p.txid ?? ""}`;
+    // lifecycle model: a reject is final for its click, and a hold cannot follow a sale
+    const st = String(p.status).trim().toLowerCase();
+    const have = new Set([...expected.keys()].filter((k) => k.startsWith(`${p.clickid}|`)).map((k) => k.split("|")[1]));
+    const blocked = valid && ((have.has("reject") && st !== "reject") || (have.has("sale") && st === "hold"));
+    const wantOk = valid && !blocked;
+    if (r.ok !== wantOk) problems.push(`step ${step}: ok=${r.ok} but expected ${wantOk} for ${JSON.stringify(p)} with ${[...have]}`);
+    if (r.ok && wantOk) {
+      const key = `${p.clickid}|${st}|${p.txid ?? ""}`;
       const first = !expected.has(key);
       if (first) expected.set(key, 1);
       if (r.inserted !== first) problems.push(`step ${step}: inserted=${r.inserted} but first=${first}`);
@@ -143,6 +148,59 @@ test("http: a wrong or missing token is 401, an unknown click 404, bad input 400
     assert.equal(await get(`/click?offer=nothing`), 404);
     assert.equal((ledger.db.prepare("SELECT COUNT(*) AS n FROM conversions").get() as { n: number }).n, 0);
   } finally { await close(); }
+});
+
+test("lifecycle and window: a reject is final, a hold cannot follow a sale, a sale can be reversed, a late conversion is refused, an old click inside the window is kept", () => {
+  const store = new PostbackStore(new Ledger(), 30);
+  const t0 = new Date("2026-11-03T00:00:00Z");
+  const day = 86_400_000;
+  const a = store.newClick({ offer: "o" }, t0);
+  assert.equal(store.record({ clickid: a, status: "reject", txid: "r1" }, t0).ok, true);
+  assert.deepEqual(store.record({ clickid: a, status: "sale", txid: "s1" }, t0), { ok: false, error: "reject_is_final" });
+  assert.equal(store.record({ clickid: a, status: "reject", txid: "r2" }, t0).ok, true);
+  const b = store.newClick({ offer: "o" }, t0);
+  assert.equal(store.record({ clickid: b, status: "sale", payout: "5", txid: "s1" }, t0).ok, true);
+  assert.deepEqual(store.record({ clickid: b, status: "hold", txid: "h1" }, t0), { ok: false, error: "hold_after_sale" });
+  assert.equal(store.record({ clickid: b, status: "reject", txid: "chargeback" }, t0).ok, true, "a sale reversed to reject is allowed");
+  const c = store.newClick({ offer: "o" }, t0);
+  assert.equal(store.record({ clickid: c, status: "lead", txid: "in" }, new Date(t0.getTime() + 29 * day)).ok, true);
+  assert.deepEqual(store.record({ clickid: c, status: "sale", txid: "late" }, new Date(t0.getTime() + 31 * day)), { ok: false, error: "outside_window" });
+  assert.throws(() => new PostbackStore(new Ledger(), 0), /positive/);
+});
+
+test("mutation control: a lifecycle check whose query finds no earlier statuses (the defect this code first shipped with) is caught by the same worlds", () => {
+  const blind = (l: Ledger) => {
+    const real = l.db.prepare.bind(l.db);
+    (l.db as unknown as { prepare: (s: string) => unknown }).prepare = (sql: string) => (/SELECT DISTINCT status/.test(sql) ? { all: () => [] } : real(sql));
+    return new PostbackStore(l);
+  };
+  const caught = Array.from({ length: 20 }, (_, i) => runWorld(blind, i + 1)).filter((x) => x.length > 0).length;
+  assert.ok(caught >= 15, `the lifecycle mutant slipped through ${20 - caught} of 20 worlds`);
+});
+
+test("rotation: weights are respected over many draws, a bad weight or an empty list throws, and a click remembers its variant", async () => {
+  const variants = [{ url: "https://a.example/{clickid}", weight: 3 }, { url: "https://b.example/{clickid}", weight: 1 }];
+  const rnd = mulberry(7);
+  const counts = [0, 0];
+  for (let i = 0; i < 4000; i++) counts[pickVariant(variants, rnd)]++;
+  assert.ok(counts[0] > 2800 && counts[0] < 3200, `variant 0 got ${counts[0]} of 4000 with weight 3 of 4`);
+  for (const bad of [[], [{ url: "x", weight: 0 }], [{ url: "x", weight: -1 }], [{ url: "x", weight: NaN }]]) assert.throws(() => pickVariant(bad as never), /weight|at least one/);
+  assert.equal(pickVariant([{ url: "x", weight: 5 }], () => 0.999999), 0);
+  const ledger = new Ledger();
+  const store = new PostbackStore(ledger);
+  const server = createReceiver({ ledger, signingKey: "k", ownerEmail: "o@example.com", postback: { store, token: TOKEN, offers: { rot: variants }, random: () => 0.9 } });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const res = await fetch(`${base}/click?offer=rot&sub1=x`, { redirect: "manual" });
+    const loc = res.headers.get("location")!;
+    assert.ok(loc.startsWith("https://b.example/"), "0.9 of the total weight lands on the second link");
+    const clickid = loc.split("/").pop()!;
+    await fetch(`${base}/postback?token=${TOKEN}&clickid=${clickid}&status=sale&payout=4`);
+    const rep = await (await fetch(`${base}/report?token=${TOKEN}`)).json() as { byVariant: unknown[] };
+    assert.deepEqual(rep.byVariant, [{ offer: "rot", variant: 1, clicks: 1, conversions: 1, payout: 4 }]);
+    assert.equal((await fetch(`${base}/report`)).status, 401);
+  } finally { server.closeAllConnections(); server.close(); }
 });
 
 test("http: the routes do not exist unless postback is configured", async () => {
