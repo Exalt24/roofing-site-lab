@@ -57,7 +57,7 @@ Needs Node 22.18 or newer and, for the site tests, a Chromium for Playwright. Th
 ```sh
 npm install
 npx playwright install chromium
-npm test                      # 250 tests across five packages
+npm test                      # 269 tests across five packages
 npm run build                 # builds from fixtures when no Sanity project id is set
 node tools/lighthouse_budget.mjs   # the performance budget CI runs after the build (about 25 seconds in CI)
 ```
