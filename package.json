@@ -14,9 +14,9 @@
     "node": ">=22.18.0"
   },
   "devDependencies": {
-    "@sanity/client": "^8.15.0",
+    "@sanity/client": "^8.16.0",
     "lighthouse": "^13.6.0",
-    "playwright": "^1.65.0"
+    "playwright": "^1.65.1"
   },
   "overrides": {
     "minimatch": "^11.0.1"
